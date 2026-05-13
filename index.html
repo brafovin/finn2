@@ -895,28 +895,27 @@ function applyToolAtHit() {
   const canSpawn = now - lastSpawnAt > 60;
 
   if (game.tool === 'water') {
-    erase(dirt.ctx, px, py, 34, 0.75);
+    erase(dirt.ctx, px, py, 26, 0.55);
     const last = pointer.lastUv.get(mesh.uuid);
-    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, 30, 0.7);
+    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, 22, 0.5);
     pointer.lastUv.set(mesh.uuid, { x: px, y: py });
     dirt.texture.needsUpdate = true;
     if (canSpawn) { spawnWater(wp); lastSpawnAt = now; }
-    game.wetness = Math.min(1, game.wetness + 0.05);
+    game.wetness = Math.min(1, game.wetness + 0.04);
     game.dryness = Math.max(0, game.dryness - 0.05);
+    consumeFoamNear(wp, 0.5);
   } else if (game.tool === 'sponge') {
-    const foamHere = foamNear(wp, 0.6);
-    const power = foamHere ? 1.0 : 0.92;
-    const r = 42;
+    const foamHere = foamNear(wp, 0.55);
+    const power = foamHere ? 0.95 : 0.45;
+    const r = 32;
     erase(dirt.ctx, px, py, r, power);
     const last = pointer.lastUv.get(mesh.uuid);
-    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, r * 0.8, power);
+    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, r * 0.7, power);
     pointer.lastUv.set(mesh.uuid, { x: px, y: py });
     dirt.texture.needsUpdate = true;
-    consumeFoamNear(wp, 0.6);
+    consumeFoamNear(wp, 0.5);
   } else if (game.tool === 'foam') {
     if (canSpawn) { spawnFoam(wp); lastSpawnAt = now; }
-    erase(dirt.ctx, px, py, 22, 0.35);
-    dirt.texture.needsUpdate = true;
   } else if (game.tool === 'dry') {
     if (canSpawn) { spawnWind(wp); lastSpawnAt = now; }
     game.dryness = Math.min(1, game.dryness + 0.025);
@@ -1116,7 +1115,7 @@ function loop(t) {
     game.cleanliness = measureCleanliness();
     ui.clean.textContent = Math.round(game.cleanliness * 100) + '%';
     ui.bar.style.width = (game.cleanliness * 100).toFixed(0) + '%';
-    if (!game.finished && game.cleanliness > 0.97 && foam.states.filter(Boolean).length < 6 && game.dryness > 0.7) {
+    if (!game.finished && game.cleanliness > 0.985 && foam.states.filter(Boolean).length < 8 && game.dryness > 0.75) {
       finishLevel();
     }
   }
