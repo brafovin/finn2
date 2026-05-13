@@ -904,6 +904,149 @@ function rebuildSparkles() {
 }
 
 // ============================================================
+//  Werkzeug-3D-Modelle (folgen dem Mauszeiger)
+// ============================================================
+const toolMeshes = {};
+function buildToolMeshes() {
+  // --- Hochdruckreiniger (Lanze entlang -z, Griff bei -y) ---
+  const washer = new THREE.Group();
+  const lanceMat = new THREE.MeshStandardMaterial({ color: 0xd6dde8, metalness: 0.95, roughness: 0.15 });
+  const lance = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1.0, 20), lanceMat);
+  lance.rotation.x = Math.PI / 2;
+  lance.position.z = -0.5;
+  washer.add(lance);
+  const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.13, 20),
+    new THREE.MeshStandardMaterial({ color: 0x10131a, metalness: 0.6, roughness: 0.4 }));
+  nozzle.rotation.x = -Math.PI / 2;
+  nozzle.position.z = -1.07;
+  washer.add(nozzle);
+  const pistolBody = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.22),
+    new THREE.MeshStandardMaterial({ color: 0xf5c728, roughness: 0.5 }));
+  pistolBody.position.set(0, 0, 0.08);
+  washer.add(pistolBody);
+  const pistolGrip = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.28, 0.11),
+    new THREE.MeshStandardMaterial({ color: 0x1a1f28, roughness: 0.7 }));
+  pistolGrip.position.set(0, -0.20, 0.12);
+  pistolGrip.rotation.x = -0.15;
+  washer.add(pistolGrip);
+  const trig = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.10, 0.05),
+    new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.7 }));
+  trig.position.set(0, -0.07, 0.05);
+  washer.add(trig);
+  const hose = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.028, 8, 16, Math.PI),
+    new THREE.MeshStandardMaterial({ color: 0x10131a, roughness: 0.85 }));
+  hose.rotation.x = -Math.PI / 2;
+  hose.position.set(0, -0.34, 0.20);
+  washer.add(hose);
+  washer.visible = false;
+  scene.add(washer);
+  toolMeshes.water = washer;
+
+  // --- Schwamm (gelber Body, gruener Scrub, Loecher oben) ---
+  const sponge = new THREE.Group();
+  const yel = new THREE.MeshStandardMaterial({ color: 0xf2d543, roughness: 0.92 });
+  const grn = new THREE.MeshStandardMaterial({ color: 0x148038, roughness: 0.98 });
+  const sBody = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.24, 0.4), yel);
+  sBody.position.y = 0.07;
+  sponge.add(sBody);
+  const sScr = new THREE.Mesh(new THREE.BoxGeometry(0.61, 0.09, 0.41), grn);
+  sScr.position.y = -0.08;
+  sponge.add(sScr);
+  for (let i = 0; i < 16; i++) {
+    const hole = new THREE.Mesh(new THREE.SphereGeometry(0.024, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xc8a924, roughness: 0.9 }));
+    hole.position.set((Math.random()-0.5)*0.52, 0.19, (Math.random()-0.5)*0.32);
+    sponge.add(hole);
+  }
+  sponge.visible = false;
+  scene.add(sponge);
+  toolMeshes.sponge = sponge;
+
+  // --- Schaumspruehflasche ---
+  const bottle = new THREE.Group();
+  const fBody = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.42, 20),
+    new THREE.MeshStandardMaterial({ color: 0x1a6df0, roughness: 0.5, metalness: 0.15 }));
+  fBody.position.y = 0.06;
+  bottle.add(fBody);
+  const fLabel = new THREE.Mesh(new THREE.CylinderGeometry(0.122, 0.122, 0.20, 20, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0xf6faff, roughness: 0.55, side: THREE.DoubleSide }));
+  fLabel.position.y = 0.06;
+  bottle.add(fLabel);
+  const fNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.09, 16),
+    new THREE.MeshStandardMaterial({ color: 0xc8ccd4, metalness: 0.75, roughness: 0.3 }));
+  fNeck.position.y = 0.32;
+  bottle.add(fNeck);
+  const fTrig = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.08, 0.08),
+    new THREE.MeshStandardMaterial({ color: 0x10131a, roughness: 0.6 }));
+  fTrig.position.set(0.11, 0.24, 0);
+  bottle.add(fTrig);
+  const fNoz = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.08, 14),
+    new THREE.MeshStandardMaterial({ color: 0x10131a }));
+  fNoz.rotation.z = -Math.PI / 2;
+  fNoz.position.set(0.23, 0.32, 0);
+  bottle.add(fNoz);
+  bottle.visible = false;
+  scene.add(bottle);
+  toolMeshes.foam = bottle;
+
+  // --- Geblaese ---
+  const blower = new THREE.Group();
+  const bBody = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.55, 22),
+    new THREE.MeshStandardMaterial({ color: 0xd02822, roughness: 0.45, metalness: 0.3 }));
+  bBody.rotation.x = Math.PI / 2;
+  bBody.position.z = -0.18;
+  blower.add(bBody);
+  const bTip = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.15, 0.22, 22),
+    new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.4, metalness: 0.5 }));
+  bTip.rotation.x = -Math.PI / 2;
+  bTip.position.z = -0.58;
+  blower.add(bTip);
+  const bGrip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.32, 0.13),
+    new THREE.MeshStandardMaterial({ color: 0x1a1f28, roughness: 0.7 }));
+  bGrip.position.set(0, -0.22, 0.06);
+  blower.add(bGrip);
+  const bInlet = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.04, 18),
+    new THREE.MeshStandardMaterial({ color: 0x10131a, roughness: 0.6 }));
+  bInlet.rotation.x = Math.PI / 2;
+  bInlet.position.z = 0.12;
+  blower.add(bInlet);
+  blower.visible = false;
+  scene.add(blower);
+  toolMeshes.dry = blower;
+}
+buildToolMeshes();
+
+const _toolUp = new THREE.Vector3(0, 1, 0);
+const _toolDir = new THREE.Vector3();
+const _toolQuat = new THREE.Quaternion();
+function updateToolMeshes() {
+  for (const k in toolMeshes) toolMeshes[k].visible = false;
+  const t = toolMeshes[game.tool];
+  if (!t || !pointer.hitUV) return;
+  t.visible = true;
+  const hp = pointer.hitPoint;
+  const n  = pointer.hitNormal;
+
+  if (game.tool === 'sponge') {
+    t.position.copy(hp).addScaledVector(n, 0.13);
+    _toolQuat.setFromUnitVectors(_toolUp, n);
+    t.quaternion.copy(_toolQuat);
+  } else if (game.tool === 'foam') {
+    t.position.copy(hp).addScaledVector(n, 0.32);
+    _toolQuat.setFromUnitVectors(_toolUp, n);
+    t.quaternion.copy(_toolQuat);
+    _toolDir.subVectors(camera.position, hp).normalize();
+    t.position.addScaledVector(_toolDir, 0.22);
+  } else {
+    // water / dry: lance along -z, position so tip lands at hit point
+    _toolDir.subVectors(hp, camera.position).normalize();
+    const len = game.tool === 'water' ? 1.10 : 0.70;
+    t.position.copy(hp).addScaledVector(_toolDir, -len);
+    t.lookAt(hp);
+  }
+}
+
+// ============================================================
 //  Tools UI
 // ============================================================
 const toolEls = document.querySelectorAll('.tool');
@@ -924,7 +1067,7 @@ window.addEventListener('keydown', e => {
 // ============================================================
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
-const pointer = { down: false, hitPoint: new THREE.Vector3(), hitUV: null, hitMesh: null, lastUv: new Map() };
+const pointer = { down: false, hitPoint: new THREE.Vector3(), hitNormal: new THREE.Vector3(0,1,0), hitUV: null, hitMesh: null, lastUv: new Map() };
 
 function setNdc(e) {
   const r = canvas.getBoundingClientRect();
@@ -943,8 +1086,8 @@ canvas.addEventListener('pointerdown', e => {
 });
 canvas.addEventListener('pointermove', e => {
   setNdc(e);
+  doRaycast();
   if (pointer.down) {
-    doRaycast();
     applyToolAtHit();
   }
 });
@@ -958,6 +1101,9 @@ function doRaycast() {
     pointer.hitPoint.copy(hits[0].point);
     pointer.hitUV = hits[0].uv;
     pointer.hitMesh = hits[0].object;
+    if (hits[0].face) {
+      pointer.hitNormal.copy(hits[0].face.normal).transformDirection(hits[0].object.matrixWorld);
+    }
   } else {
     pointer.hitUV = null;
     pointer.hitMesh = null;
@@ -1207,6 +1353,9 @@ function loop(t) {
   water.update(dt);
   foam.update(dt);
   wind.update(dt);
+
+  // Werkzeug am Mauszeiger
+  updateToolMeshes();
 
   // Sparkles visible only when clean & dry
   const shine = (game.cleanliness > 0.9 && game.dryness > 0.75) ? 1 : 0;
