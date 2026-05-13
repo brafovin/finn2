@@ -50,7 +50,7 @@
   <div id="stage">
     <canvas id="c"></canvas>
     <div id="hud">
-      <div class="legend">1 Wasser · 2 Schaum · 3 Schwamm · 4 Trocknen · <b>Links</b> Reinigen · <b>Chromgriff</b> klicken um Motorhaube/Kofferraum/Tueren zu oeffnen · <b>Rechts/Zwei&nbsp;Finger</b> Kamera drehen</div>
+      <div class="legend">1 Wasser · 2 Schaum · 3 Schwamm · 4 Trocknen · <b>Links</b> Reinigen · <b>Chromgriff</b> oeffnet Motorhaube und Kofferraum · <b>Rechts/Zwei&nbsp;Finger</b> Kamera drehen</div>
       <div id="message"></div>
       <div class="progress"><div id="bar"></div></div>
     </div>
@@ -607,7 +607,8 @@ function buildCar() {
     group.add(m);
   }
   const cy = cabin.position.y + 0.04;
-  // Front- und Heckscheibe (Seitenscheiben sind Teil der Tueren)
+  addPane(cabinW * 0.92, cabinH * 0.62, cabin.position.x, cy,  cabinD/2 + 0.001);
+  addPane(cabinW * 0.92, cabinH * 0.62, cabin.position.x, cy, -cabinD/2 - 0.001, Math.PI);
   addPane(cabinD * 0.92, cabinH * 0.62, cabin.position.x + cabinW/2 + 0.001, cy, 0,  Math.PI/2);
   addPane(cabinD * 0.92, cabinH * 0.62, cabin.position.x - cabinW/2 - 0.001, cy, 0, -Math.PI/2);
 
@@ -821,49 +822,6 @@ function buildCar() {
     -Math.PI / 3, 'z'
   );
   addHandle(trunk.hinge, -0.73, 0.03, 0, 0.22, 0.025, 0.06);
-
-  // Seitentueren (eine pro Seite, schwenken nach aussen)
-  function makeDoor(side) {
-    const hinge = new THREE.Group();
-    hinge.position.set(0.95, 1.45, side * (cabinD/2 + 0.04));
-    group.add(hinge);
-
-    const geo = new THREE.BoxGeometry(1.25, 0.42, 0.05);
-    remapBoxFaceUVs(geo);
-    const dirt = makeDirtTexture();
-    const mat = makeCarMaterial(color, dirt.texture);
-    const panel = new THREE.Mesh(geo, mat);
-    panel.position.set(-0.62, -0.15, 0);
-    panel.castShadow = true; panel.receiveShadow = true;
-    panel.userData.dirt = dirt;
-    hinge.add(panel);
-    sprinkleDirt(dirt, 1 + (game.level - 1) * 0.18);
-    game.dirtMeshes.push(panel);
-
-    // Seitenscheibe an der Tuer
-    const win = new THREE.Mesh(new THREE.PlaneGeometry(1.18, 0.34), winMat);
-    win.position.set(-0.62, 0.22, side * 0.028);
-    win.rotation.y = side > 0 ? 0 : Math.PI;
-    hinge.add(win);
-
-    // Tuergriff aus Chrom
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.05, 0.05), handleMat);
-    handle.position.set(-0.5, -0.05, side * 0.05);
-    handle.userData.hinge = hinge;
-    hinge.add(handle);
-    game.openables.push(handle);
-
-    hinge.userData = {
-      closed: 0,
-      open: side * (Math.PI / 3),
-      current: 0,
-      target: 0,
-      axis: 'y',
-    };
-    game.hinges.push(hinge);
-  }
-  makeDoor(1);
-  makeDoor(-1);
 
   // Nummernschild
   const plate = new THREE.Mesh(
@@ -1171,6 +1129,7 @@ function setNdc(e) {
 canvas.addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   if (e.pointerType === 'touch' && e.isPrimary !== true) return;
+  if (game.driveAway) return;
   canvas.setPointerCapture(e.pointerId);
   setNdc(e);
   // Klappen-Griff zuerst pruefen
@@ -1419,14 +1378,17 @@ function finishLevel() {
   const tip = Math.max(20, cleanBonus + timeBonus + dryBonus);
   game.score += tip;
   ui.score.textContent = game.score + ' €';
-  showMessage(`✨ Glänzend! +${tip} € Trinkgeld`);
+  showMessage(`✨ Glänzend! +${tip} € Trinkgeld — der Wagen faehrt los`);
   ui.next.disabled = false;
+  game.driveAway = { elapsed: 0, duration: 3.6, distance: 24 };
 }
-ui.next.addEventListener('click', () => {
+function advanceLevel() {
+  game.driveAway = null;
   game.level++;
   game.paintIdx = (game.paintIdx + 1) % game.palette.length;
   newLevel();
-});
+}
+ui.next.addEventListener('click', advanceLevel);
 
 // ============================================================
 //  Render loop
@@ -1464,6 +1426,17 @@ function loop(t) {
     const u = h.userData;
     u.current += (u.target - u.current) * easeK;
     h.rotation[u.axis] = u.current;
+  }
+
+  // Wagen faehrt nach dem Fertigwaschen davon
+  if (game.driveAway && game.carGroup) {
+    const d = game.driveAway;
+    d.elapsed += dt;
+    const tt = Math.min(1, d.elapsed / d.duration);
+    const eased = tt * tt;
+    game.carGroup.position.x = eased * d.distance;
+    game.carGroup.position.y = Math.sin(tt * Math.PI * 8) * 0.015;
+    if (tt >= 1) advanceLevel();
   }
 
   // Sparkles visible only when clean & dry
