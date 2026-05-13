@@ -141,6 +141,7 @@ scene.add(fill);
 // ============================================================
 //  Workshop
 // ============================================================
+let garageDoor; // Rolltor-Group (Tor + Lamellen schieben sich beim Verlassen nach oben)
 function buildWorkshop() {
   // --- Concrete floor ---
   const floor = new THREE.Mesh(
@@ -172,17 +173,25 @@ function buildWorkshop() {
     m.position.set(x, 0.013, z);
     scene.add(m);
   }
-  stripe(0,  3.6, 6.8, 0.10);
-  stripe(0, -3.6, 6.8, 0.10);
-  stripe(-3.4, 0, 0.10, 7.2);
-  stripe( 3.4, 0, 0.10, 7.2);
+  stripe(-1.5, 0, 0.10, 4.6);  // linke Begrenzung
+  stripe( 1.5, 0, 0.10, 4.6);  // rechte Begrenzung
+  stripe( 0,  2.45, 3.2, 0.10); // hintere Begrenzung (Wagen faehrt vorwaerts in -z)
 
   // --- Walls ---
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xc0c4ce, roughness: 0.92, metalness: 0.0 });
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(36, 13), wallMat);
-  back.position.set(0, 6.0, -11);
-  back.receiveShadow = true;
-  scene.add(back);
+  // Hintere Wand: in drei Teile mit Tor-Ausschnitt aufgeteilt
+  const backL = new THREE.Mesh(new THREE.PlaneGeometry(13.9, 13), wallMat);
+  backL.position.set(-11.05, 6.0, -11);
+  backL.receiveShadow = true;
+  scene.add(backL);
+  const backR = new THREE.Mesh(new THREE.PlaneGeometry(13.9, 13), wallMat);
+  backR.position.set(11.05, 6.0, -11);
+  backR.receiveShadow = true;
+  scene.add(backR);
+  const backTop = new THREE.Mesh(new THREE.PlaneGeometry(8.2, 6.65), wallMat);
+  backTop.position.set(0, 9.175, -11);
+  backTop.receiveShadow = true;
+  scene.add(backTop);
   const left = new THREE.Mesh(new THREE.PlaneGeometry(22, 13), wallMat);
   left.position.set(-13, 6.0, 0);
   left.rotation.y = Math.PI/2;
@@ -195,22 +204,27 @@ function buildWorkshop() {
   scene.add(right);
   // Skirting board
   const skirtMat = new THREE.MeshStandardMaterial({ color: 0x33363f, roughness: 0.7 });
-  const skirtB = new THREE.Mesh(new THREE.BoxGeometry(36, 0.35, 0.08), skirtMat);
-  skirtB.position.set(0, 0.175, -10.96); scene.add(skirtB);
+  // Sockelleiste hinten in zwei Teile, Lueck im Tor-Bereich
+  const skirtBL = new THREE.Mesh(new THREE.BoxGeometry(13.9, 0.35, 0.08), skirtMat);
+  skirtBL.position.set(-11.05, 0.175, -10.96); scene.add(skirtBL);
+  const skirtBR = new THREE.Mesh(new THREE.BoxGeometry(13.9, 0.35, 0.08), skirtMat);
+  skirtBR.position.set(11.05, 0.175, -10.96); scene.add(skirtBR);
   const skirtL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 22), skirtMat);
   skirtL.position.set(-12.96, 0.175, 0); scene.add(skirtL);
   const skirtR = skirtL.clone(); skirtR.position.x = 12.96; scene.add(skirtR);
 
-  // --- Roll-up garage door on back wall ---
+  // --- Rolltor (Tor + Lamellen sind in einer Group, die nach oben gleitet) ---
+  garageDoor = new THREE.Group();
+  scene.add(garageDoor);
   const doorMat = new THREE.MeshStandardMaterial({ color: 0x7e8590, roughness: 0.45, metalness: 0.55 });
   const door = new THREE.Mesh(new THREE.PlaneGeometry(8.2, 5.8), doorMat);
   door.position.set(0, 2.95, -10.94);
-  scene.add(door);
+  garageDoor.add(door);
   const slatMat = new THREE.MeshStandardMaterial({ color: 0x3a3f48, roughness: 0.7 });
   for (let i = 0; i < 9; i++) {
     const slat = new THREE.Mesh(new THREE.PlaneGeometry(8.2, 0.04), slatMat);
     slat.position.set(0, 0.3 + i * 0.66, -10.93);
-    scene.add(slat);
+    garageDoor.add(slat);
   }
   // door rails
   const railMat = new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.5, metalness: 0.7 });
@@ -399,7 +413,7 @@ function buildWorkshop() {
     new THREE.PlaneGeometry(5, 0.9),
     new THREE.MeshBasicMaterial({ map: signTex })
   );
-  sign.position.set(0, 6.4, -10.93);
+  sign.position.set(0, 8.9, -10.92);
   scene.add(sign);
 }
 buildWorkshop();
@@ -563,6 +577,7 @@ function buildCar() {
 
   const group = new THREE.Group();
   group.position.set(0, 0, 0);
+  group.rotation.y = Math.PI / 2; // Wagen schaut Richtung Rolltor (-z)
   scene.add(group);
   game.carGroup = group;
 
@@ -1380,10 +1395,11 @@ function finishLevel() {
   ui.score.textContent = game.score + ' €';
   showMessage(`✨ Glänzend! +${tip} € Trinkgeld — der Wagen faehrt los`);
   ui.next.disabled = false;
-  game.driveAway = { elapsed: 0, duration: 3.6, distance: 24 };
+  game.driveAway = { elapsed: 0, duration: 4.2, distance: 30 };
 }
 function advanceLevel() {
   game.driveAway = null;
+  if (garageDoor) garageDoor.position.y = 0;
   game.level++;
   game.paintIdx = (game.paintIdx + 1) % game.palette.length;
   newLevel();
@@ -1428,14 +1444,22 @@ function loop(t) {
     h.rotation[u.axis] = u.current;
   }
 
-  // Wagen faehrt nach dem Fertigwaschen davon
+  // Wagen faehrt nach dem Fertigwaschen durchs Rolltor
   if (game.driveAway && game.carGroup) {
     const d = game.driveAway;
     d.elapsed += dt;
     const tt = Math.min(1, d.elapsed / d.duration);
-    const eased = tt * tt;
-    game.carGroup.position.x = eased * d.distance;
-    game.carGroup.position.y = Math.sin(tt * Math.PI * 8) * 0.015;
+    // Tor faehrt in den ersten 0.9s nach oben (smoothstep)
+    const dT = Math.min(1, d.elapsed / 0.9);
+    const dE = dT * dT * (3 - 2 * dT);
+    if (garageDoor) garageDoor.position.y = dE * 5.85;
+    // Wagen rollt ab 0.7s nach -z los und beschleunigt durchs Tor
+    const carDelay = 0.7;
+    const carDur = Math.max(0.1, d.duration - carDelay);
+    const cT = Math.max(0, Math.min(1, (d.elapsed - carDelay) / carDur));
+    const cE = cT * cT;
+    game.carGroup.position.z = -cE * d.distance;
+    game.carGroup.position.y = Math.sin(d.elapsed * Math.PI * 9) * 0.012 * cT;
     if (tt >= 1) advanceLevel();
   }
 
