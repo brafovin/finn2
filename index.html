@@ -85,7 +85,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.55;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -117,10 +117,10 @@ window.addEventListener('resize', resize);
 // ============================================================
 //  Lights & environment
 // ============================================================
-scene.add(new THREE.HemisphereLight(0xa0c8ff, 0x1a1820, 0.55));
-scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+scene.add(new THREE.HemisphereLight(0xd5e4ff, 0x4a4640, 1.1));
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
 
-const sun = new THREE.DirectionalLight(0xffeacb, 1.35);
+const sun = new THREE.DirectionalLight(0xfff2d6, 2.0);
 sun.position.set(7, 11, 5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -130,9 +130,13 @@ sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 30;
 sun.shadow.bias = -0.0005;
 scene.add(sun);
 
-const rim = new THREE.DirectionalLight(0x66b2ff, 0.45);
+const rim = new THREE.DirectionalLight(0xa6ccff, 0.9);
 rim.position.set(-6, 5, -6);
 scene.add(rim);
+
+const fill = new THREE.DirectionalLight(0xffffff, 0.7);
+fill.position.set(0, 6, 10);
+scene.add(fill);
 
 // ============================================================
 //  Workshop
@@ -141,7 +145,7 @@ function buildWorkshop() {
   // --- Concrete floor ---
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(34, 34),
-    new THREE.MeshStandardMaterial({ color: 0x6a6e78, roughness: 0.92, metalness: 0.05 })
+    new THREE.MeshStandardMaterial({ color: 0x9aa0aa, roughness: 0.85, metalness: 0.05 })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
@@ -174,7 +178,7 @@ function buildWorkshop() {
   stripe( 3.4, 0, 0.10, 7.2);
 
   // --- Walls ---
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x7a7e8a, roughness: 0.95, metalness: 0.0 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xc0c4ce, roughness: 0.92, metalness: 0.0 });
   const back = new THREE.Mesh(new THREE.PlaneGeometry(36, 13), wallMat);
   back.position.set(0, 6.0, -11);
   back.receiveShadow = true;
@@ -232,7 +236,7 @@ function buildWorkshop() {
 
   // --- Hanging workshop lamps ---
   const lampShadeMat = new THREE.MeshStandardMaterial({ color: 0xe8d9a8, roughness: 0.55, side: THREE.DoubleSide });
-  function lamp(x, z, intensity = 5) {
+  function lamp(x, z, intensity = 12) {
     const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.4),
       new THREE.MeshBasicMaterial({ color: 0x222 }));
     wire.position.set(x, 7.0, z);
@@ -244,7 +248,7 @@ function buildWorkshop() {
       new THREE.MeshBasicMaterial({ color: 0xffe7b8 }));
     bulb.position.set(x, 6.10, z);
     scene.add(bulb);
-    const pl = new THREE.PointLight(0xffd9a0, intensity, 10, 1.6);
+    const pl = new THREE.PointLight(0xffe4b0, intensity, 14, 1.4);
     pl.position.set(x, 5.95, z);
     scene.add(pl);
   }
@@ -587,18 +591,10 @@ function buildCar() {
   group.add(cabin);
   game.dirtMeshes.push(cabin);
 
-  // Hood/trunk slope details (cosmetic, no dirt)
-  const hoodGeo = new THREE.BoxGeometry(1.0, 0.08, bodyD * 0.95);
-  const hoodMat = new THREE.MeshPhysicalMaterial({ color, metalness:0.75, roughness:0.35, clearcoat:1 });
-  const hood = new THREE.Mesh(hoodGeo, hoodMat);
-  hood.position.set(bodyW/2 - 0.5, 0.7 + bodyH/2 + 0.04, 0);
-  hood.castShadow = true; hood.receiveShadow = true;
-  group.add(hood);
-
   // Windows (transparent panes inset on cabin faces)
   const winMat = new THREE.MeshPhysicalMaterial({
-    color: 0x0a1828, metalness: 0.1, roughness: 0.05,
-    transmission: 0.55, transparent: true, opacity: 0.85,
+    color: 0x1a2838, metalness: 0.1, roughness: 0.08,
+    transmission: 0.85, transparent: true, opacity: 0.45,
     ior: 1.45, clearcoat: 1, clearcoatRoughness: 0.05
   });
   function addPane(w, h, x, y, z, ry = 0) {
@@ -899,27 +895,27 @@ function applyToolAtHit() {
   const canSpawn = now - lastSpawnAt > 60;
 
   if (game.tool === 'water') {
-    erase(dirt.ctx, px, py, 26, 0.5);
+    erase(dirt.ctx, px, py, 34, 0.75);
     const last = pointer.lastUv.get(mesh.uuid);
-    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, 22, 0.45);
+    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, 30, 0.7);
     pointer.lastUv.set(mesh.uuid, { x: px, y: py });
     dirt.texture.needsUpdate = true;
     if (canSpawn) { spawnWater(wp); lastSpawnAt = now; }
     game.wetness = Math.min(1, game.wetness + 0.05);
     game.dryness = Math.max(0, game.dryness - 0.05);
   } else if (game.tool === 'sponge') {
-    const foamHere = foamNear(wp, 0.5);
-    const power = foamHere ? 0.95 : 0.7;
-    const r = 32;
+    const foamHere = foamNear(wp, 0.6);
+    const power = foamHere ? 1.0 : 0.92;
+    const r = 42;
     erase(dirt.ctx, px, py, r, power);
     const last = pointer.lastUv.get(mesh.uuid);
-    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, r * 0.7, power);
+    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, r * 0.8, power);
     pointer.lastUv.set(mesh.uuid, { x: px, y: py });
     dirt.texture.needsUpdate = true;
-    consumeFoamNear(wp, 0.5);
+    consumeFoamNear(wp, 0.6);
   } else if (game.tool === 'foam') {
     if (canSpawn) { spawnFoam(wp); lastSpawnAt = now; }
-    erase(dirt.ctx, px, py, 14, 0.06);
+    erase(dirt.ctx, px, py, 22, 0.35);
     dirt.texture.needsUpdate = true;
   } else if (game.tool === 'dry') {
     if (canSpawn) { spawnWind(wp); lastSpawnAt = now; }
@@ -1120,7 +1116,7 @@ function loop(t) {
     game.cleanliness = measureCleanliness();
     ui.clean.textContent = Math.round(game.cleanliness * 100) + '%';
     ui.bar.style.width = (game.cleanliness * 100).toFixed(0) + '%';
-    if (!game.finished && game.cleanliness > 0.985 && foam.states.filter(Boolean).length < 6 && game.dryness > 0.75) {
+    if (!game.finished && game.cleanliness > 0.97 && foam.states.filter(Boolean).length < 6 && game.dryness > 0.7) {
       finishLevel();
     }
   }
