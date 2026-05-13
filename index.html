@@ -661,8 +661,12 @@ function eraseSegment(ctx, ax, ay, bx, by, r, power) {
   ctx.restore();
 }
 
+let lastSpawnAt = 0;
 function applyToolAtHit() {
-  if (!pointer.hitUV || !pointer.hitMesh) return;
+  if (!pointer.hitUV || !pointer.hitMesh) {
+    pointer.lastUv.clear();
+    return;
+  }
   const mesh = pointer.hitMesh;
   const dirt = mesh.userData.dirt;
   const dc = dirt.canvas;
@@ -670,21 +674,22 @@ function applyToolAtHit() {
   const py = pointer.hitUV.y * dc.height;
   const wp = pointer.hitPoint;
 
+  const now = performance.now();
+  const canSpawn = now - lastSpawnAt > 60;
+
   if (game.tool === 'water') {
-    erase(dirt.ctx, px, py, 26, 0.45);
-    // stream segment
+    erase(dirt.ctx, px, py, 26, 0.5);
     const last = pointer.lastUv.get(mesh.uuid);
-    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, 22, 0.4);
+    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, 22, 0.45);
     pointer.lastUv.set(mesh.uuid, { x: px, y: py });
     dirt.texture.needsUpdate = true;
-    spawnWater(wp);
+    if (canSpawn) { spawnWater(wp); lastSpawnAt = now; }
     game.wetness = Math.min(1, game.wetness + 0.05);
     game.dryness = Math.max(0, game.dryness - 0.05);
   } else if (game.tool === 'sponge') {
-    // Sponge cleans much more strongly when there's foam in the area
     const foamHere = foamNear(wp, 0.5);
-    const power = foamHere ? 0.95 : 0.45;
-    const r = 34;
+    const power = foamHere ? 0.95 : 0.7;
+    const r = 32;
     erase(dirt.ctx, px, py, r, power);
     const last = pointer.lastUv.get(mesh.uuid);
     if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, r * 0.7, power);
@@ -692,15 +697,13 @@ function applyToolAtHit() {
     dirt.texture.needsUpdate = true;
     consumeFoamNear(wp, 0.5);
   } else if (game.tool === 'foam') {
-    spawnFoam(wp);
-    // gentle pre-soak
+    if (canSpawn) { spawnFoam(wp); lastSpawnAt = now; }
     erase(dirt.ctx, px, py, 14, 0.06);
     dirt.texture.needsUpdate = true;
   } else if (game.tool === 'dry') {
-    spawnWind(wp);
+    if (canSpawn) { spawnWind(wp); lastSpawnAt = now; }
     game.dryness = Math.min(1, game.dryness + 0.025);
     game.wetness = Math.max(0, game.wetness - 0.025);
-    // dry foam quickly
     dryFoamNear(wp, 0.6);
   }
 }
@@ -709,59 +712,58 @@ function applyToolAtHit() {
 //  Particle emitters / queries
 // ============================================================
 function spawnWater(wp) {
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 3; i++) {
     const a = Math.random() * Math.PI * 2;
-    const sp = 1.0 + Math.random() * 2.5;
+    const sp = 0.6 + Math.random() * 1.4;
     water.spawn({
       x: wp.x, y: wp.y + 0.05, z: wp.z,
       vx: Math.cos(a) * sp,
-      vy: 1.5 + Math.random() * 2,
+      vy: 0.8 + Math.random() * 1.2,
       vz: Math.sin(a) * sp,
       gravity: 9.5,
-      size: 16 + Math.random() * 16,
-      alpha: 0.95,
-      life: 0.5 + Math.random() * 0.4,
-      maxLife: 0.9,
+      size: 10 + Math.random() * 10,
+      alpha: 0.7,
+      life: 0.25 + Math.random() * 0.25,
+      maxLife: 0.5,
     });
   }
 }
 function spawnFoam(wp) {
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 2; i++) {
     const a = Math.random() * Math.PI * 2;
-    const r = Math.random() * 0.25;
+    const r = Math.random() * 0.18;
     foam.spawn({
       x: wp.x + Math.cos(a)*r,
-      y: wp.y + Math.random()*0.1,
+      y: wp.y + Math.random()*0.06,
       z: wp.z + Math.sin(a)*r,
-      vx: Math.cos(a) * 0.15,
+      vx: Math.cos(a) * 0.12,
       vy: 0.0,
-      vz: Math.sin(a) * 0.15,
+      vz: Math.sin(a) * 0.12,
       gravity: 0.0,
-      size: 28 + Math.random() * 24,
-      alpha: 0.85,
-      life: 4 + Math.random() * 4,
-      maxLife: 8,
+      size: 16 + Math.random() * 12,
+      alpha: 0.55,
+      life: 0.9 + Math.random() * 0.8,
+      maxLife: 1.7,
     });
   }
-  game.foamCount += 6;
+  game.foamCount += 2;
 }
 function spawnWind(wp) {
-  // Direction from camera toward the hit point projected onto horizontal plane
   const dir = new THREE.Vector3().subVectors(wp, camera.position).setY(0).normalize();
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 2; i++) {
     const o = new THREE.Vector3(
-      (Math.random()-0.5)*0.25, (Math.random()-0.5)*0.18, (Math.random()-0.5)*0.25
+      (Math.random()-0.5)*0.18, (Math.random()-0.5)*0.12, (Math.random()-0.5)*0.18
     );
     wind.spawn({
       x: wp.x + o.x, y: wp.y + o.y, z: wp.z + o.z,
-      vx: dir.x * 4 + (Math.random()-0.5)*1.2,
-      vy: 0.4 + Math.random()*0.6,
-      vz: dir.z * 4 + (Math.random()-0.5)*1.2,
+      vx: dir.x * 3 + (Math.random()-0.5)*0.8,
+      vy: 0.25 + Math.random()*0.4,
+      vz: dir.z * 3 + (Math.random()-0.5)*0.8,
       gravity: 0,
-      size: 22 + Math.random()*10,
-      alpha: 0.55,
-      life: 0.35 + Math.random()*0.25,
-      maxLife: 0.6,
+      size: 12 + Math.random()*6,
+      alpha: 0.35,
+      life: 0.18 + Math.random()*0.18,
+      maxLife: 0.36,
     });
   }
 }
