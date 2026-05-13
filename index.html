@@ -419,8 +419,140 @@ function buildWorkshop() {
 buildWorkshop();
 
 // ============================================================
-//  Game state
+//  Tanzende Katze in der Werkstatt
 // ============================================================
+let dancingCat, catTail, catBody, catHead;
+function buildCat() {
+  const cat = new THREE.Group();
+  cat.position.set(8.6, 1.74, 5); // auf dem roten Werkzeugwagen
+  scene.add(cat);
+  dancingCat = cat;
+
+  const furMat = new THREE.MeshStandardMaterial({ color: 0xe07a2c, roughness: 0.78 });
+  const stripeMat = new THREE.MeshStandardMaterial({ color: 0x6a3210, roughness: 0.85 });
+  const innerEarMat = new THREE.MeshStandardMaterial({ color: 0xffabbf, roughness: 0.6 });
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x121821, roughness: 0.2 });
+  const eyeShine = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const noseMat = new THREE.MeshStandardMaterial({ color: 0xff5e7a, roughness: 0.4 });
+  const whiteMat = new THREE.MeshStandardMaterial({ color: 0xfff4e8, roughness: 0.75 });
+
+  // Body
+  catBody = new THREE.Group();
+  cat.add(catBody);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14), furMat);
+  body.scale.set(1.0, 1.15, 0.85);
+  body.position.y = 0.25;
+  body.castShadow = true;
+  catBody.add(body);
+  // Bauch in Weiss
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), whiteMat);
+  belly.scale.set(0.85, 1.0, 0.6);
+  belly.position.set(0, 0.22, 0.10);
+  catBody.add(belly);
+  // Tigerstreifen am Ruecken
+  for (let i = 0; i < 4; i++) {
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.02, 0.04), stripeMat);
+    stripe.position.set(0, 0.42 - i * 0.04, -0.06 - i * 0.02);
+    stripe.rotation.z = Math.PI / 2;
+    catBody.add(stripe);
+  }
+
+  // Head
+  catHead = new THREE.Group();
+  catHead.position.set(0, 0.50, 0.12);
+  cat.add(catHead);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 18, 14), furMat);
+  head.scale.set(1.05, 0.95, 1.0);
+  head.castShadow = true;
+  catHead.add(head);
+  // Schnauze (helle Kugel vorne unten)
+  const snout = new THREE.Mesh(new THREE.SphereGeometry(0.08, 14, 10), whiteMat);
+  snout.position.set(0, -0.04, 0.12);
+  snout.scale.set(1, 0.7, 0.8);
+  catHead.add(snout);
+  // Nase
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), noseMat);
+  nose.position.set(0, 0.0, 0.18);
+  catHead.add(nose);
+  // Augen mit Glanzpunkt
+  for (const ex of [-0.06, 0.06]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), eyeMat);
+    eye.position.set(ex, 0.045, 0.14);
+    eye.scale.set(1, 1.15, 1);
+    catHead.add(eye);
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), eyeShine);
+    shine.position.set(ex + 0.008, 0.058, 0.155);
+    catHead.add(shine);
+  }
+  // Ohren als Kegel
+  for (const ex of [-0.10, 0.10]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.13, 14), furMat);
+    ear.position.set(ex, 0.18, -0.02);
+    ear.castShadow = true;
+    catHead.add(ear);
+    const inner = new THREE.Mesh(new THREE.ConeGeometry(0.030, 0.07, 14), innerEarMat);
+    inner.position.set(ex, 0.18, 0.0);
+    catHead.add(inner);
+  }
+  // Schnurrhaare als kleine schwarze Zylinder
+  const whiskerMat = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+  for (const side of [-1, 1]) {
+    for (let w = -1; w <= 1; w++) {
+      const whisker = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.18, 5), whiskerMat);
+      whisker.rotation.z = Math.PI/2;
+      whisker.rotation.y = side * (0.18 + w * 0.12);
+      whisker.position.set(side * 0.12, -0.02 + w * 0.012, 0.13);
+      catHead.add(whisker);
+    }
+  }
+
+  // Beine (4 kurze Zylinder)
+  for (const lx of [-0.12, 0.12]) {
+    for (const lz of [-0.10, 0.10]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.16, 12), furMat);
+      leg.position.set(lx, 0.08, lz);
+      leg.castShadow = true;
+      cat.add(leg);
+      // Pfote in Weiss
+      const paw = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), whiteMat);
+      paw.position.set(lx, 0.005, lz);
+      paw.scale.set(1, 0.5, 1);
+      cat.add(paw);
+    }
+  }
+
+  // Schweif: gekruemmte Kette aus Kugeln in eigener Group fuers Wedeln
+  catTail = new THREE.Group();
+  catTail.position.set(0, 0.32, -0.18);
+  cat.add(catTail);
+  for (let i = 0; i < 7; i++) {
+    const tt = i / 6;
+    const seg = new THREE.Mesh(new THREE.SphereGeometry(0.05 - tt*0.022, 10, 8), furMat);
+    seg.position.set(
+      Math.sin(tt * 1.1) * 0.05,
+      Math.sin(tt * Math.PI * 0.6) * 0.30 + tt * 0.05,
+      -tt * 0.10
+    );
+    seg.castShadow = true;
+    catTail.add(seg);
+  }
+
+  // kleines Hutchen oder Halsband — Halsband in Pink
+  const collar = new THREE.Mesh(
+    new THREE.TorusGeometry(0.13, 0.018, 8, 18),
+    new THREE.MeshStandardMaterial({ color: 0xff3a8a, metalness: 0.3, roughness: 0.5 })
+  );
+  collar.rotation.x = Math.PI / 2;
+  collar.position.set(0, 0.42, 0.08);
+  cat.add(collar);
+  const bell = new THREE.Mesh(
+    new THREE.SphereGeometry(0.025, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xf5c728, metalness: 0.85, roughness: 0.25 })
+  );
+  bell.position.set(0, 0.40, 0.20);
+  cat.add(bell);
+}
+buildCat();
 const game = {
   tool: 'water',
   paintIdx: 0,
@@ -1398,6 +1530,28 @@ function loop(t) {
   water.update(dt);
   foam.update(dt);
   wind.update(dt);
+
+  // Tanzende Katze
+  if (dancingCat) {
+    const ts = t * 0.001;
+    const beat = Math.sin(ts * 4.5);
+    const beatHalf = Math.sin(ts * 2.25);
+    dancingCat.position.y = 1.74 + Math.abs(beat) * 0.16;
+    dancingCat.rotation.y = Math.sin(ts * 2.0) * 0.7;
+    dancingCat.rotation.z = beatHalf * 0.18;
+    if (catBody) {
+      catBody.rotation.x = Math.sin(ts * 4.5) * 0.10;
+      catBody.rotation.y = Math.sin(ts * 1.6) * 0.25;
+    }
+    if (catHead) {
+      catHead.rotation.z = Math.sin(ts * 3.0) * 0.30;
+      catHead.rotation.x = Math.sin(ts * 4.5) * 0.18;
+    }
+    if (catTail) {
+      catTail.rotation.y = Math.sin(ts * 6.0) * 0.8;
+      catTail.rotation.z = Math.sin(ts * 4.0) * 0.4;
+    }
+  }
 
   // Werkzeug am Mauszeiger
   updateToolMeshes();
