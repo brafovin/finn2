@@ -705,7 +705,7 @@ function makePoolPoints(maxCount, opts) {
         vAlpha = aAlpha;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         gl_Position = projectionMatrix * mv;
-        gl_PointSize = aSize * uPixelRatio * (300.0 / -mv.z);
+        gl_PointSize = aSize * uPixelRatio * (8.0 / max(1.0, -mv.z));
       }
     `,
     fragmentShader: `
