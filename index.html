@@ -50,7 +50,7 @@
   <div id="stage">
     <canvas id="c"></canvas>
     <div id="hud">
-      <div class="legend">1 Wasser · 2 Schaum · 3 Schwamm · 4 Trocknen · <b>Links</b> Reinigen · <b>Chromgriff</b> oeffnet Motorhaube und Kofferraum · <b>Rechts/Zwei&nbsp;Finger</b> Kamera drehen</div>
+      <div class="legend">1 Wasser · 2 Schaum · 3 Schwamm · 4 Trocknen · <b>Links</b> Reinigen · <b>Rechts/Zwei&nbsp;Finger</b> Kamera drehen · <b>Scrollen</b> Zoom</div>
       <div id="message"></div>
       <div class="progress"><div id="bar"></div></div>
     </div>
@@ -790,53 +790,6 @@ function buildCar() {
   sunroof.rotation.x = -Math.PI / 2;
   sunroof.position.set(cabin.position.x, cabin.position.y + cabinH/2 + 0.006, 0);
   group.add(sunroof);
-
-  // === Oeffnenbare Klappen (Motorhaube, Kofferraum, Tueren) ===
-  const handleMat = new THREE.MeshStandardMaterial({ color: 0xd6dde8, metalness: 0.92, roughness: 0.18 });
-
-  function makePanel(geo, hingePos, localPos, openAngle, axis) {
-    remapBoxFaceUVs(geo);
-    const dirt = makeDirtTexture();
-    const mat = makeCarMaterial(color, dirt.texture);
-    const panel = new THREE.Mesh(geo, mat);
-    panel.position.copy(localPos);
-    panel.castShadow = true; panel.receiveShadow = true;
-    panel.userData.dirt = dirt;
-    const hinge = new THREE.Group();
-    hinge.position.copy(hingePos);
-    hinge.add(panel);
-    hinge.userData = { closed: 0, open: openAngle, current: 0, target: 0, axis };
-    group.add(hinge);
-    sprinkleDirt(dirt, 1 + (game.level - 1) * 0.18);
-    game.dirtMeshes.push(panel);
-    game.hinges.push(hinge);
-    return { hinge, panel };
-  }
-  function addHandle(hinge, x, y, z, w = 0.18, h = 0.04, d = 0.04) {
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), handleMat);
-    handle.position.set(x, y, z);
-    handle.userData.hinge = hinge;
-    hinge.add(handle);
-    game.openables.push(handle);
-  }
-
-  // Motorhaube (oeffnet nach oben)
-  const hood = makePanel(
-    new THREE.BoxGeometry(1.0, 0.05, 1.55),
-    new THREE.Vector3(1.05, 0.7 + bodyH/2 + 0.025, 0),
-    new THREE.Vector3(0.5, 0, 0),
-    Math.PI / 2.4, 'z'
-  );
-  addHandle(hood.hinge, 0.97, 0.03, 0, 0.22, 0.025, 0.06);
-
-  // Kofferraumdeckel (oeffnet nach oben)
-  const trunk = makePanel(
-    new THREE.BoxGeometry(0.78, 0.05, 1.55),
-    new THREE.Vector3(-1.36, 0.7 + bodyH/2 + 0.025, 0),
-    new THREE.Vector3(-0.39, 0, 0),
-    -Math.PI / 3, 'z'
-  );
-  addHandle(trunk.hinge, -0.73, 0.03, 0, 0.22, 0.025, 0.06);
 
   // Nummernschild
   const plate = new THREE.Mesh(
