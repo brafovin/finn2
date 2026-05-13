@@ -1004,25 +1004,25 @@ function applyToolAtHit() {
   const canSpawn = now - lastSpawnAt > 60;
 
   if (game.tool === 'water') {
-    erase(dirt.ctx, px, py, 26, 0.55);
+    erase(dirt.ctx, px, py, 60, 0.55);
     const last = pointer.lastUv.get(mesh.uuid);
-    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, 22, 0.5);
+    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, 52, 0.5);
     pointer.lastUv.set(mesh.uuid, { x: px, y: py });
     dirt.texture.needsUpdate = true;
     if (canSpawn) { spawnWater(wp); lastSpawnAt = now; }
     game.wetness = Math.min(1, game.wetness + 0.04);
     game.dryness = Math.max(0, game.dryness - 0.05);
-    consumeFoamNear(wp, 0.5);
+    consumeFoamNear(wp, 0.9);
   } else if (game.tool === 'sponge') {
-    const foamHere = foamNear(wp, 0.55);
+    const foamHere = foamNear(wp, 0.9);
     const power = foamHere ? 0.95 : 0.45;
-    const r = 32;
+    const r = 62;
     erase(dirt.ctx, px, py, r, power);
     const last = pointer.lastUv.get(mesh.uuid);
-    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, r * 0.7, power);
+    if (last) eraseSegment(dirt.ctx, last.x, last.y, px, py, r * 0.8, power);
     pointer.lastUv.set(mesh.uuid, { x: px, y: py });
     dirt.texture.needsUpdate = true;
-    consumeFoamNear(wp, 0.5);
+    consumeFoamNear(wp, 0.9);
   } else if (game.tool === 'foam') {
     if (canSpawn) { spawnFoam(wp); lastSpawnAt = now; }
   } else if (game.tool === 'dry') {
@@ -1054,9 +1054,9 @@ function spawnWater(wp) {
   }
 }
 function spawnFoam(wp) {
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     const a = Math.random() * Math.PI * 2;
-    const r = Math.random() * 0.18;
+    const r = Math.random() * 0.45;
     foam.spawn({
       x: wp.x + Math.cos(a)*r,
       y: wp.y + Math.random()*0.06,
