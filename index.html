@@ -50,7 +50,7 @@
   <div id="stage">
     <canvas id="c"></canvas>
     <div id="hud">
-      <div class="legend">1 Wasser · 2 Schaum · 3 Schwamm · 4 Trocknen · <b>Links</b> Reinigen · <b>Rechts/Zwei&nbsp;Finger</b> Kamera drehen · <b>Scrollen</b> Zoom</div>
+      <div class="legend">1 Wasser · 2 Schaum · 3 Schwamm · 4 Trocknen · <b>Links</b> Reinigen · <b>Chromgriff</b> klicken um Motorhaube/Kofferraum/Tueren zu oeffnen · <b>Rechts/Zwei&nbsp;Finger</b> Kamera drehen</div>
       <div id="message"></div>
       <div class="progress"><div id="bar"></div></div>
     </div>
@@ -415,6 +415,8 @@ const game = {
   cleanliness: 0, wetness: 0, dryness: 1, foamCount: 0,
   finished: false,
   dirtMeshes: [],
+  openables: [],
+  hinges: [],
   carGroup: null,
 };
 
@@ -477,25 +479,25 @@ function sprinkleDirt(dirt, intensity = 1) {
       // Skip "bottom" face (index 3 == -y == fy=1, fx=0)
       if (fx === 0 && fy === 1) continue;
       const x0 = fx * fw, y0 = fy * fh;
-      const blobs = Math.floor(38 * intensity);
+      const blobs = Math.floor(58 * intensity);
       for (let i = 0; i < blobs; i++) {
         const cx = x0 + Math.random() * fw;
         const cy = y0 + Math.random() * fh;
-        const r = 14 + Math.random() * 46;
+        const r = 18 + Math.random() * 52;
         const hue = 22 + Math.random() * 18;
-        const a = 0.55 + Math.random() * 0.35;
+        const a = 0.75 + Math.random() * 0.25;
         const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        g.addColorStop(0, `hsla(${hue},45%,14%,${a})`);
-        g.addColorStop(0.55, `hsla(${hue},35%,12%,${a*0.45})`);
-        g.addColorStop(1, `hsla(${hue},30%,10%,0)`);
+        g.addColorStop(0, `hsla(${hue},55%,10%,${a})`);
+        g.addColorStop(0.55, `hsla(${hue},45%,9%,${a*0.6})`);
+        g.addColorStop(1, `hsla(${hue},35%,7%,0)`);
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
       }
-      for (let i = 0; i < Math.floor(10 * intensity); i++) {
+      for (let i = 0; i < Math.floor(16 * intensity); i++) {
         const sx = x0 + Math.random() * fw;
         const sy = y0 + Math.random() * fh;
-        ctx.strokeStyle = `hsla(${24+Math.random()*16},40%,12%,${0.3+Math.random()*0.3})`;
-        ctx.lineWidth = 2 + Math.random()*4;
+        ctx.strokeStyle = `hsla(${24+Math.random()*16},45%,10%,${0.45+Math.random()*0.35})`;
+        ctx.lineWidth = 3 + Math.random()*5;
         ctx.beginPath();
         ctx.moveTo(sx, sy);
         ctx.bezierCurveTo(sx+18, sy+12, sx+34, sy-6, sx+55, sy + (Math.random()-0.5)*22);
@@ -525,7 +527,7 @@ function makeCarMaterial(color, dirtTex) {
       .replace('#include <map_fragment>',
         `vec4 dirtSample = texture2D( map, vMapUv );
          float dirtA = dirtSample.a;
-         diffuseColor.rgb = mix( diffuseColor.rgb, vec3(0.12, 0.085, 0.045), dirtA * 0.94 );`)
+         diffuseColor.rgb = mix( diffuseColor.rgb, vec3(0.045, 0.030, 0.015), dirtA );`)
       .replace('#include <roughnessmap_fragment>',
         `float roughnessFactor = roughness;
          #ifdef USE_ROUGHNESSMAP
@@ -533,7 +535,7 @@ function makeCarMaterial(color, dirtTex) {
            roughnessFactor *= texelRoughness.g;
          #endif
          float dirtR = texture2D( map, vMapUv ).a;
-         roughnessFactor = mix( roughnessFactor, 0.85, dirtR );
+         roughnessFactor = mix( roughnessFactor, 0.95, dirtR );
          roughnessFactor = mix( roughnessFactor, 0.05, (1.0 - dirtR) * uWetness );`);
     mat.userData.shader = shader;
   };
@@ -556,6 +558,8 @@ function buildCar() {
     });
   }
   game.dirtMeshes = [];
+  game.openables = [];
+  game.hinges = [];
 
   const group = new THREE.Group();
   group.position.set(0, 0, 0);
@@ -603,8 +607,7 @@ function buildCar() {
     group.add(m);
   }
   const cy = cabin.position.y + 0.04;
-  addPane(cabinW * 0.92, cabinH * 0.62, cabin.position.x, cy,  cabinD/2 + 0.001);
-  addPane(cabinW * 0.92, cabinH * 0.62, cabin.position.x, cy, -cabinD/2 - 0.001, Math.PI);
+  // Front- und Heckscheibe (Seitenscheiben sind Teil der Tueren)
   addPane(cabinD * 0.92, cabinH * 0.62, cabin.position.x + cabinW/2 + 0.001, cy, 0,  Math.PI/2);
   addPane(cabinD * 0.92, cabinH * 0.62, cabin.position.x - cabinW/2 - 0.001, cy, 0, -Math.PI/2);
 
@@ -771,6 +774,96 @@ function buildCar() {
   sunroof.rotation.x = -Math.PI / 2;
   sunroof.position.set(cabin.position.x, cabin.position.y + cabinH/2 + 0.006, 0);
   group.add(sunroof);
+
+  // === Oeffnenbare Klappen (Motorhaube, Kofferraum, Tueren) ===
+  const handleMat = new THREE.MeshStandardMaterial({ color: 0xd6dde8, metalness: 0.92, roughness: 0.18 });
+
+  function makePanel(geo, hingePos, localPos, openAngle, axis) {
+    remapBoxFaceUVs(geo);
+    const dirt = makeDirtTexture();
+    const mat = makeCarMaterial(color, dirt.texture);
+    const panel = new THREE.Mesh(geo, mat);
+    panel.position.copy(localPos);
+    panel.castShadow = true; panel.receiveShadow = true;
+    panel.userData.dirt = dirt;
+    const hinge = new THREE.Group();
+    hinge.position.copy(hingePos);
+    hinge.add(panel);
+    hinge.userData = { closed: 0, open: openAngle, current: 0, target: 0, axis };
+    group.add(hinge);
+    sprinkleDirt(dirt, 1 + (game.level - 1) * 0.18);
+    game.dirtMeshes.push(panel);
+    game.hinges.push(hinge);
+    return { hinge, panel };
+  }
+  function addHandle(hinge, x, y, z, w = 0.18, h = 0.04, d = 0.04) {
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), handleMat);
+    handle.position.set(x, y, z);
+    handle.userData.hinge = hinge;
+    hinge.add(handle);
+    game.openables.push(handle);
+  }
+
+  // Motorhaube (oeffnet nach oben)
+  const hood = makePanel(
+    new THREE.BoxGeometry(1.0, 0.05, 1.55),
+    new THREE.Vector3(1.05, 0.7 + bodyH/2 + 0.025, 0),
+    new THREE.Vector3(0.5, 0, 0),
+    Math.PI / 2.4, 'z'
+  );
+  addHandle(hood.hinge, 0.97, 0.03, 0, 0.22, 0.025, 0.06);
+
+  // Kofferraumdeckel (oeffnet nach oben)
+  const trunk = makePanel(
+    new THREE.BoxGeometry(0.78, 0.05, 1.55),
+    new THREE.Vector3(-1.36, 0.7 + bodyH/2 + 0.025, 0),
+    new THREE.Vector3(-0.39, 0, 0),
+    -Math.PI / 3, 'z'
+  );
+  addHandle(trunk.hinge, -0.73, 0.03, 0, 0.22, 0.025, 0.06);
+
+  // Seitentueren (eine pro Seite, schwenken nach aussen)
+  function makeDoor(side) {
+    const hinge = new THREE.Group();
+    hinge.position.set(0.95, 1.45, side * (cabinD/2 + 0.04));
+    group.add(hinge);
+
+    const geo = new THREE.BoxGeometry(1.25, 0.42, 0.05);
+    remapBoxFaceUVs(geo);
+    const dirt = makeDirtTexture();
+    const mat = makeCarMaterial(color, dirt.texture);
+    const panel = new THREE.Mesh(geo, mat);
+    panel.position.set(-0.62, -0.15, 0);
+    panel.castShadow = true; panel.receiveShadow = true;
+    panel.userData.dirt = dirt;
+    hinge.add(panel);
+    sprinkleDirt(dirt, 1 + (game.level - 1) * 0.18);
+    game.dirtMeshes.push(panel);
+
+    // Seitenscheibe an der Tuer
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(1.18, 0.34), winMat);
+    win.position.set(-0.62, 0.22, side * 0.028);
+    win.rotation.y = side > 0 ? 0 : Math.PI;
+    hinge.add(win);
+
+    // Tuergriff aus Chrom
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.05, 0.05), handleMat);
+    handle.position.set(-0.5, -0.05, side * 0.05);
+    handle.userData.hinge = hinge;
+    hinge.add(handle);
+    game.openables.push(handle);
+
+    hinge.userData = {
+      closed: 0,
+      open: side * (Math.PI / 3),
+      current: 0,
+      target: 0,
+      axis: 'y',
+    };
+    game.hinges.push(hinge);
+  }
+  makeDoor(1);
+  makeDoor(-1);
 
   // Nummernschild
   const plate = new THREE.Mesh(
@@ -1080,6 +1173,14 @@ canvas.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch' && e.isPrimary !== true) return;
   canvas.setPointerCapture(e.pointerId);
   setNdc(e);
+  // Klappen-Griff zuerst pruefen
+  raycaster.setFromCamera(ndc, camera);
+  const openHits = raycaster.intersectObjects(game.openables, false);
+  if (openHits.length) {
+    const u = openHits[0].object.userData.hinge.userData;
+    u.target = (u.target === u.closed) ? u.open : u.closed;
+    return;
+  }
   pointer.down = true;
   doRaycast();
   applyToolAtHit();
@@ -1356,6 +1457,14 @@ function loop(t) {
 
   // Werkzeug am Mauszeiger
   updateToolMeshes();
+
+  // Klappen-Animation
+  const easeK = Math.min(1, dt * 7);
+  for (const h of game.hinges) {
+    const u = h.userData;
+    u.current += (u.target - u.current) * easeK;
+    h.rotation[u.axis] = u.current;
+  }
 
   // Sparkles visible only when clean & dry
   const shine = (game.cleanliness > 0.9 && game.dryness > 0.75) ? 1 : 0;
