@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Auto Waschen Deluxe</title>
+<style>
+  :root{
+    --bg0:#0a0d14; --bg1:#11161f; --ink:#e8f1ff; --accent:#48d1ff; --warn:#ffb648;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:radial-gradient(1200px 800px at 50% 30%,#1a2230,#06080d 70%);color:var(--ink);font-family:"Segoe UI",Roboto,Inter,system-ui,sans-serif;overflow:hidden}
+  #app{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto;gap:8px;padding:10px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 12px;background:linear-gradient(180deg,#141a26cc,#0c111a99);border:1px solid #1f2a3d;border-radius:12px;backdrop-filter:blur(8px)}
+  header h1{font-size:18px;margin:0;letter-spacing:.5px}
+  header h1 span{color:var(--accent)}
+  .stats{display:flex;gap:14px;font-variant-numeric:tabular-nums;font-size:14px}
+  .pill{padding:4px 10px;border-radius:999px;background:#0d1320;border:1px solid #243149}
+  .pill b{color:var(--accent)}
+  #stage{position:relative;border-radius:18px;overflow:hidden;border:1px solid #1f2a3d;box-shadow:0 30px 80px #000a inset,0 10px 40px #0008}
+  canvas{display:block;width:100%;height:100%;cursor:none;touch-action:none}
+  #hud{position:absolute;inset:0;pointer-events:none}
+  #message{position:absolute;left:50%;top:18%;transform:translateX(-50%);background:#0d1320d8;border:1px solid #2a3a55;padding:14px 22px;border-radius:14px;font-size:20px;letter-spacing:.4px;opacity:0;transition:opacity .35s;text-shadow:0 2px 16px #000c}
+  #message.show{opacity:1}
+  footer{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;padding:8px;background:linear-gradient(180deg,#0c111a99,#141a26cc);border:1px solid #1f2a3d;border-radius:12px}
+  .tool{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 14px;border-radius:12px;background:#0e1422;border:1px solid #1f2a3d;cursor:pointer;user-select:none;min-width:90px;transition:transform .12s,border-color .2s,background .2s}
+  .tool:hover{transform:translateY(-2px);border-color:#365275}
+  .tool.active{background:linear-gradient(180deg,#15273f,#0e1422);border-color:var(--accent);box-shadow:0 0 0 2px #48d1ff33,0 8px 24px #48d1ff22}
+  .tool .ico{font-size:22px;line-height:1}
+  .tool .lbl{font-size:12px;color:#bcd}
+  .key{font-size:10px;color:#7fa;border:1px solid #2a3a55;padding:1px 5px;border-radius:6px;margin-left:4px}
+  #next{margin-left:8px;padding:8px 14px;border-radius:12px;background:linear-gradient(180deg,#1a2e4d,#0e1422);border:1px solid #365275;color:#cfe9ff;cursor:pointer}
+  #next:disabled{opacity:.4;cursor:not-allowed}
+  .progress{position:absolute;left:14px;right:14px;bottom:14px;height:10px;border-radius:999px;background:#0d1320b0;border:1px solid #243149;overflow:hidden}
+  .progress > div{height:100%;width:0%;background:linear-gradient(90deg,#48d1ff,#7fffd4);box-shadow:0 0 18px #48d1ff77;transition:width .15s}
+  .legend{position:absolute;top:12px;left:14px;font-size:12px;color:#cfd8e8;background:#0d1320b0;border:1px solid #243149;padding:6px 10px;border-radius:10px}
+  .legend b{color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Auto <span>Waschen</span> Deluxe</h1>
+    <div class="stats">
+      <div class="pill">Auftrag <b id="level">1</b></div>
+      <div class="pill">Sauberkeit <b id="clean">0%</b></div>
+      <div class="pill">Trinkgeld <b id="score">0&nbsp;€</b></div>
+      <div class="pill">Zeit <b id="time">0.0s</b></div>
+    </div>
+  </header>
+
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div id="hud">
+      <div class="legend">1 Wasser · 2 Schaum · 3 Schwamm · 4 Trocknen · <b>Halten & ziehen</b> zum Reinigen</div>
+      <div id="message"></div>
+      <div class="progress"><div id="bar"></div></div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="tool active" data-tool="water"><div class="ico">💦</div><div class="lbl">Wasser <span class="key">1</span></div></div>
+    <div class="tool" data-tool="foam"><div class="ico">🫧</div><div class="lbl">Schaum <span class="key">2</span></div></div>
+    <div class="tool" data-tool="sponge"><div class="ico">🧽</div><div class="lbl">Schwamm <span class="key">3</span></div></div>
+    <div class="tool" data-tool="dry"><div class="ico">🌬️</div><div class="lbl">Trocknen <span class="key">4</span></div></div>
+    <button id="next" disabled>Nächstes Auto →</button>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const stage = document.getElementById('stage');
+  const bar = document.getElementById('bar');
+  const cleanEl = document.getElementById('clean');
+  const scoreEl = document.getElementById('score');
+  const timeEl  = document.getElementById('time');
+  const levelEl = document.getElementById('level');
+  const msgEl   = document.getElementById('message');
+  const nextBtn = document.getElementById('next');
+
+  // ---------- Sizing with DPR awareness ----------
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const r = stage.getBoundingClientRect();
+    W = Math.floor(r.width);
+    H = Math.floor(r.height);
+    canvas.width  = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    buildDirtCanvas();
+  }
+  window.addEventListener('resize', resize);
+
+  // ---------- State ----------
+  const state = {
+    tool: 'water',
+    pointer: { x: -999, y: -999, down: false, lastX: -999, lastY: -999, speed: 0 },
+    score: 0,
+    level: 1,
+    elapsed: 0,
+    wetness: 0,         // how wet the car is (0..1)
+    foamCover: 0,       // how much foam is on top (0..1)
+    dryness: 1,         // 1 = dry, 0 = soaking
+    cleanliness: 0,     // 0..1 derived from dirtCanvas
+    paint: '#c8324a',
+    palette: ['#c8324a','#2a6df4','#15a36a','#f0a022','#8b3aa6','#1f2a3a','#d8d8df','#0aa3b3'],
+    finished: false,
+    particles: [],
+    droplets: [],
+    suds: [],
+    wind: [],
+    sparkles: [],
+    timeOfDay: 0,
+    car: null,
+  };
+
+  // ---------- Tools ----------
+  const tools = document.querySelectorAll('.tool');
+  function setTool(t) {
+    state.tool = t;
+    tools.forEach(el => el.classList.toggle('active', el.dataset.tool === t));
+  }
+  tools.forEach(el => el.addEventListener('click', () => setTool(el.dataset.tool)));
+  window.addEventListener('keydown', e => {
+    if (e.key === '1') setTool('water');
+    else if (e.key === '2') setTool('foam');
+    else if (e.key === '3') setTool('sponge');
+    else if (e.key === '4') setTool('dry');
+  });
+
+  // ---------- Pointer ----------
+  function pointerPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  }
+  canvas.addEventListener('pointerdown', e => {
+    canvas.setPointerCapture(e.pointerId);
+    const p = pointerPos(e);
+    state.pointer.down = true;
+    state.pointer.x = p.x; state.pointer.y = p.y;
+    state.pointer.lastX = p.x; state.pointer.lastY = p.y;
+  });
+  canvas.addEventListener('pointermove', e => {
+    const p = pointerPos(e);
+    state.pointer.lastX = state.pointer.x;
+    state.pointer.lastY = state.pointer.y;
+    state.pointer.x = p.x; state.pointer.y = p.y;
+    const dx = state.pointer.x - state.pointer.lastX;
+    const dy = state.pointer.y - state.pointer.lastY;
+    state.pointer.speed = Math.hypot(dx, dy);
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev =>
+    canvas.addEventListener(ev, () => state.pointer.down = false));
+
+  // ---------- Car geometry ----------
+  function makeCar(seed = 1) {
+    const baseW = Math.min(W * 0.78, 980);
+    const baseH = baseW * 0.42;
+    const cx = W / 2;
+    const cy = H * 0.62;
+    return {
+      cx, cy, w: baseW, h: baseH,
+      paint: state.palette[(state.level - 1) % state.palette.length],
+      // body silhouette polygon points (relative to center)
+      points: [
+        [-0.50,  0.10], [-0.46, -0.10], [-0.32, -0.28],
+        [-0.10, -0.42], [ 0.18, -0.44], [ 0.34, -0.30],
+        [ 0.48, -0.16], [ 0.50,  0.05], [ 0.46,  0.20],
+        [-0.46,  0.20]
+      ],
+    };
+  }
+
+  // ---------- Dirt mask (offscreen) ----------
+  const dirt = document.createElement('canvas');
+  const dctx = dirt.getContext('2d');
+  function buildDirtCanvas() {
+    dirt.width = Math.max(2, Math.floor(W * DPR * 0.5));
+    dirt.height= Math.max(2, Math.floor(H * DPR * 0.5));
+  }
+  function sprinkleDirt() {
+    const car = state.car;
+    dctx.setTransform(1,0,0,1,0,0);
+    dctx.clearRect(0,0,dirt.width,dirt.height);
+    const sx = (dirt.width / W);
+    const sy = (dirt.height/ H);
+    dctx.save();
+    dctx.scale(sx, sy);
+    // Heavy dirt blotches
+    const blobs = 70 + state.level * 18;
+    for (let i = 0; i < blobs; i++) {
+      const a = Math.random();
+      const ang = Math.random() * Math.PI * 2;
+      const rr = Math.sqrt(Math.random());
+      const px = car.cx + Math.cos(ang) * rr * car.w * 0.48;
+      const py = car.cy + Math.sin(ang) * rr * car.h * 0.55 - car.h * 0.05;
+      const rad = 14 + Math.random() * 38;
+      const g = dctx.createRadialGradient(px, py, 0, px, py, rad);
+      const hue = 22 + Math.random() * 18;
+      g.addColorStop(0, `hsla(${hue},45%,18%,${0.55 + a*0.4})`);
+      g.addColorStop(0.6, `hsla(${hue},40%,14%,${0.25 + a*0.25})`);
+      g.addColorStop(1, `hsla(${hue},30%,10%,0)`);
+      dctx.fillStyle = g;
+      dctx.beginPath(); dctx.arc(px, py, rad, 0, Math.PI*2); dctx.fill();
+    }
+    // Mud streaks
+    for (let i = 0; i < 30 + state.level * 6; i++) {
+      const x = car.cx + (Math.random()-0.5) * car.w * 0.95;
+      const y = car.cy + (Math.random()-0.5) * car.h * 0.85;
+      dctx.strokeStyle = `hsla(${24+Math.random()*16},40%,${10+Math.random()*8}%,${0.25+Math.random()*0.35})`;
+      dctx.lineWidth = 2 + Math.random()*4;
+      dctx.beginPath();
+      dctx.moveTo(x,y);
+      dctx.bezierCurveTo(x+20,y+10,x+40,y-10,x+60+Math.random()*40,y+Math.random()*20-10);
+      dctx.stroke();
+    }
+    dctx.restore();
+    // Clip to car silhouette so dirt only sits on the body
+    dctx.globalCompositeOperation = 'destination-in';
+    const path = carBodyPath(1, sx, sy);
+    dctx.fill(path);
+    dctx.globalCompositeOperation = 'source-over';
+  }
+
+  function carBodyPath(scale = 1, sx = 1, sy = 1) {
+    const car = state.car;
+    const p = new Path2D();
+    const pts = car.points;
+    function tx(x){ return (car.cx + x * car.w) * sx; }
+    function ty(y){ return (car.cy + y * car.h) * sy; }
+    p.moveTo(tx(pts[0][0]), ty(pts[0][1]));
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i-1], b = pts[i], c = pts[(i+1)%pts.length];
+      // smooth via mid-points
+      const mx = (b[0]+c[0])/2, my = (b[1]+c[1])/2;
+      p.quadraticCurveTo(tx(b[0]), ty(b[1]), tx(mx), ty(my));
+    }
+    p.closePath();
+    return p;
+  }
+
+  // ---------- Cleanliness sampling ----------
+  let sampleCounter = 0;
+  function measureCleanliness() {
+    // Sample alpha within car body to estimate remaining dirt
+    const car = state.car;
+    const w = dirt.width, h = dirt.height;
+    const img = dctx.getImageData(0,0,w,h).data;
+    const sx = (dirt.width / W), sy = (dirt.height/ H);
+    let total = 0, dirty = 0;
+    const step = 6;
+    const minX = Math.max(0,(car.cx - car.w*0.5)*sx);
+    const maxX = Math.min(w,(car.cx + car.w*0.5)*sx);
+    const minY = Math.max(0,(car.cy - car.h*0.6)*sy);
+    const maxY = Math.min(h,(car.cy + car.h*0.55)*sy);
+    for (let y = minY|0; y < maxY; y += step) {
+      for (let x = minX|0; x < maxX; x += step) {
+        const i = (y * w + x) * 4 + 3;
+        total++;
+        if (img[i] > 14) dirty++;
+      }
+    }
+    return total ? 1 - dirty/total : 1;
+  }
+
+  // ---------- Drawing helpers ----------
+  function drawBackground(t) {
+    // Garage floor & wall, animated lights
+    const skyTop = '#0a0f17', skyBot = '#1a2536';
+    const g = ctx.createLinearGradient(0, 0, 0, H*0.6);
+    g.addColorStop(0, skyTop); g.addColorStop(1, skyBot);
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H*0.6);
+    // floor
+    const fg = ctx.createLinearGradient(0, H*0.6, 0, H);
+    fg.addColorStop(0, '#0d131e'); fg.addColorStop(1, '#05080d');
+    ctx.fillStyle = fg; ctx.fillRect(0,H*0.6,W,H*0.4);
+
+    // back wall tiles
+    const tile = 64;
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = '#243149';
+    ctx.lineWidth = 1;
+    for (let x = (W/2 % tile); x < W; x += tile) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H*0.6); ctx.stroke();
+    }
+    for (let y = 0; y < H*0.6; y += tile) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    ctx.restore();
+
+    // floor perspective grid
+    ctx.save();
+    ctx.strokeStyle = '#1b2740';
+    ctx.lineWidth = 1;
+    const vanX = W/2, vanY = H*0.6;
+    for (let i = -10; i <= 10; i++) {
+      ctx.beginPath();
+      ctx.moveTo(vanX + i * (W*0.08), vanY);
+      ctx.lineTo(vanX + i * (W*0.7), H);
+      ctx.globalAlpha = 0.4 - Math.abs(i)*0.03;
+      ctx.stroke();
+    }
+    for (let i = 1; i < 10; i++) {
+      const yy = vanY + i*i * (H*0.005);
+      if (yy > H) break;
+      ctx.globalAlpha = 0.35 / (i*0.4+1);
+      ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(W, yy); ctx.stroke();
+    }
+    ctx.restore();
+
+    // Ceiling neon lights
+    for (let i = 0; i < 6; i++) {
+      const lx = (i+0.5)/6 * W;
+      const ly = 18 + Math.sin(t*0.001 + i)*1.5;
+      const rg = ctx.createRadialGradient(lx, ly, 2, lx, ly, 200);
+      const flicker = 0.85 + Math.sin(t*0.01 + i*1.7)*0.05;
+      rg.addColorStop(0, `rgba(160,220,255,${0.95*flicker})`);
+      rg.addColorStop(0.2, `rgba(80,170,230,${0.35*flicker})`);
+      rg.addColorStop(1, 'rgba(80,170,230,0)');
+      ctx.fillStyle = rg;
+      ctx.fillRect(lx-220, 0, 440, 240);
+      ctx.fillStyle = '#cfeefe';
+      ctx.fillRect(lx-26, ly-2, 52, 4);
+    }
+
+    // Wet floor reflection of car
+    const car = state.car;
+    ctx.save();
+    ctx.translate(0, H*1.24);
+    ctx.scale(1, -0.55);
+    ctx.globalAlpha = 0.22;
+    drawCar(t, true);
+    ctx.restore();
+    // gloss strip on floor
+    const fl = ctx.createLinearGradient(0, H*0.6, 0, H*0.95);
+    fl.addColorStop(0, 'rgba(80,140,200,0.0)');
+    fl.addColorStop(0.4,'rgba(80,140,200,0.06)');
+    fl.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = fl; ctx.fillRect(0, H*0.6, W, H*0.4);
+  }
+
+  function drawCar(t, isReflection = false) {
+    const car = state.car;
+    const path = carBodyPath();
+
+    // Soft ground shadow
+    if (!isReflection) {
+      ctx.save();
+      const sg = ctx.createRadialGradient(car.cx, car.cy + car.h*0.42, 10, car.cx, car.cy + car.h*0.42, car.w*0.55);
+      sg.addColorStop(0, 'rgba(0,0,0,0.55)');
+      sg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = sg;
+      ctx.beginPath();
+      ctx.ellipse(car.cx, car.cy + car.h*0.42, car.w*0.52, car.h*0.16, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Body base with vertical gradient + metallic highlights
+    ctx.save();
+    ctx.clip(path);
+    const baseColor = car.paint;
+    const top = shade(baseColor, 0.35);
+    const mid = shade(baseColor, 0.05);
+    const bot = shade(baseColor, -0.35);
+    const bg = ctx.createLinearGradient(0, car.cy - car.h*0.5, 0, car.cy + car.h*0.3);
+    bg.addColorStop(0, top);
+    bg.addColorStop(0.5, mid);
+    bg.addColorStop(1, bot);
+    ctx.fillStyle = bg;
+    ctx.fillRect(car.cx - car.w*0.6, car.cy - car.h*0.7, car.w*1.2, car.h*1.5);
+
+    // metallic flake noise
+    ctx.globalAlpha = 0.08;
+    for (let i = 0; i < 240; i++) {
+      const x = car.cx + (Math.random()-0.5) * car.w;
+      const y = car.cy + (Math.random()-0.5) * car.h;
+      ctx.fillStyle = Math.random() < 0.5 ? '#fff' : '#000';
+      ctx.fillRect(x, y, 1.2, 1.2);
+    }
+    ctx.globalAlpha = 1;
+
+    // top highlight band
+    const hg = ctx.createLinearGradient(0, car.cy - car.h*0.5, 0, car.cy - car.h*0.05);
+    hg.addColorStop(0, 'rgba(255,255,255,0.55)');
+    hg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = hg;
+    ctx.fillRect(car.cx - car.w*0.5, car.cy - car.h*0.5, car.w, car.h*0.45);
+
+    // bottom dark band
+    const dg = ctx.createLinearGradient(0, car.cy + car.h*0.05, 0, car.cy + car.h*0.25);
+    dg.addColorStop(0, 'rgba(0,0,0,0)');
+    dg.addColorStop(1, 'rgba(0,0,0,0.4)');
+    ctx.fillStyle = dg;
+    ctx.fillRect(car.cx - car.w*0.5, car.cy + car.h*0.05, car.w, car.h*0.22);
+
+    // Wet sheen — increases with wetness
+    if (state.wetness > 0.01) {
+      const wg = ctx.createLinearGradient(car.cx - car.w*0.3, car.cy - car.h*0.5, car.cx + car.w*0.3, car.cy + car.h*0.2);
+      const a = 0.18 + state.wetness*0.35;
+      wg.addColorStop(0, `rgba(255,255,255,0)`);
+      wg.addColorStop(0.4, `rgba(220,240,255,${a*0.6})`);
+      wg.addColorStop(0.55, `rgba(255,255,255,${a})`);
+      wg.addColorStop(0.7, `rgba(220,240,255,${a*0.6})`);
+      wg.addColorStop(1, `rgba(255,255,255,0)`);
+      ctx.fillStyle = wg;
+      ctx.fillRect(car.cx - car.w*0.6, car.cy - car.h*0.7, car.w*1.2, car.h*1.5);
+    }
+    ctx.restore();
+
+    // Windows (glass)
+    drawWindows(car);
+
+    // Trim & door line
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(car.cx - car.w*0.05, car.cy - car.h*0.42);
+    ctx.lineTo(car.cx - car.w*0.05, car.cy + car.h*0.2);
+    ctx.stroke();
+    // side molding
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.moveTo(car.cx - car.w*0.46, car.cy + car.h*0.06);
+    ctx.lineTo(car.cx + car.w*0.46, car.cy + car.h*0.06);
+    ctx.stroke();
+    ctx.restore();
+
+    // Wheels
+    drawWheel(car.cx - car.w*0.30, car.cy + car.h*0.22, car.h*0.30);
+    drawWheel(car.cx + car.w*0.30, car.cy + car.h*0.22, car.h*0.30);
+
+    // Headlight / tail
+    drawLight(car.cx + car.w*0.46, car.cy - car.h*0.05, car.h*0.10, 'rgba(255,250,210,0.95)');
+    drawLight(car.cx - car.w*0.46, car.cy - car.h*0.02, car.h*0.08, 'rgba(255,80,60,0.9)');
+
+    // Door handle
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillRect(car.cx + car.w*0.04, car.cy - car.h*0.05, car.w*0.07, car.h*0.04);
+
+    // Dirt overlay (scaled up from offscreen mask)
+    if (!isReflection) {
+      ctx.save();
+      ctx.clip(path);
+      ctx.imageSmoothingEnabled = true;
+      ctx.globalAlpha = 0.92;
+      ctx.drawImage(dirt, 0, 0, W, H);
+      ctx.restore();
+    }
+
+    // Foam overlay
+    drawFoam();
+
+    // Sparkles when very clean
+    if (!isReflection && state.cleanliness > 0.85 && state.dryness > 0.7) {
+      for (const s of state.sparkles) drawSparkle(s);
+    }
+
+    // Outline
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke(path);
+    ctx.restore();
+  }
+
+  function drawWindows(car) {
+    ctx.save();
+    const wx = car.cx, wy = car.cy - car.h*0.18;
+    const ww = car.w*0.5, wh = car.h*0.28;
+    const winPath = new Path2D();
+    winPath.moveTo(wx - ww*0.45, wy + wh*0.55);
+    winPath.quadraticCurveTo(wx - ww*0.35, wy - wh*0.85, wx - ww*0.05, wy - wh*0.95);
+    winPath.lineTo(wx + ww*0.20, wy - wh*0.95);
+    winPath.quadraticCurveTo(wx + ww*0.45, wy - wh*0.80, wx + ww*0.50, wy + wh*0.55);
+    winPath.closePath();
+    ctx.clip(winPath);
+    const gg = ctx.createLinearGradient(wx, wy - wh, wx, wy + wh);
+    gg.addColorStop(0, '#a8d6ff');
+    gg.addColorStop(0.4, '#3b6f9c');
+    gg.addColorStop(1, '#16243a');
+    ctx.fillStyle = gg;
+    ctx.fillRect(wx - ww, wy - wh, ww*2, wh*2.2);
+    // reflected sky band
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.moveTo(wx - ww*0.45, wy - wh*0.4);
+    ctx.lineTo(wx + ww*0.5, wy - wh*0.7);
+    ctx.lineTo(wx + ww*0.5, wy - wh*0.55);
+    ctx.lineTo(wx - ww*0.45, wy - wh*0.22);
+    ctx.closePath();
+    ctx.fill();
+    // pillar (B-pillar)
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(wx - 3, wy - wh, 6, wh*2);
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 2;
+    ctx.stroke(winPath);
+    ctx.restore();
+  }
+
+  function drawWheel(x, y, r) {
+    ctx.save();
+    // tire
+    const tg = ctx.createRadialGradient(x, y, r*0.4, x, y, r*1.05);
+    tg.addColorStop(0, '#1a1f29');
+    tg.addColorStop(1, '#05070b');
+    ctx.fillStyle = tg;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+    // rim
+    const rg = ctx.createRadialGradient(x - r*0.2, y - r*0.2, r*0.05, x, y, r*0.65);
+    rg.addColorStop(0, '#e8f1ff');
+    rg.addColorStop(0.6, '#7c8aa0');
+    rg.addColorStop(1, '#2b3344');
+    ctx.fillStyle = rg;
+    ctx.beginPath(); ctx.arc(x, y, r*0.62, 0, Math.PI*2); ctx.fill();
+    // spokes
+    ctx.strokeStyle = '#2b3344';
+    ctx.lineWidth = r*0.10;
+    for (let i = 0; i < 5; i++) {
+      const a = i * Math.PI * 2 / 5;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55);
+      ctx.stroke();
+    }
+    // hub
+    ctx.fillStyle = '#cfd8e6';
+    ctx.beginPath(); ctx.arc(x, y, r*0.14, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawLight(x, y, r, color) {
+    ctx.save();
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, color);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.beginPath(); ctx.arc(x, y, r*0.25, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFoam() {
+    if (state.foamCover < 0.005 && state.suds.length === 0) return;
+    const car = state.car;
+    const path = carBodyPath();
+    ctx.save();
+    ctx.clip(path);
+
+    // bubble field
+    for (const s of state.suds) {
+      const a = Math.max(0, s.life / s.maxLife);
+      const r = s.r;
+      const g = ctx.createRadialGradient(s.x - r*0.4, s.y - r*0.4, r*0.1, s.x, s.y, r);
+      g.addColorStop(0, `rgba(255,255,255,${0.95*a})`);
+      g.addColorStop(0.6, `rgba(220,240,255,${0.5*a})`);
+      g.addColorStop(1, `rgba(180,210,235,0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI*2); ctx.fill();
+      // tiny highlight
+      ctx.fillStyle = `rgba(255,255,255,${0.8*a})`;
+      ctx.beginPath(); ctx.arc(s.x - r*0.4, s.y - r*0.5, r*0.18, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawSparkle(s) {
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.r);
+    const a = (Math.sin(performance.now()*0.005 + s.phase) + 1) / 2;
+    ctx.globalAlpha = 0.35 + a * 0.5;
+    ctx.fillStyle = '#fff';
+    const sz = s.size * (0.7 + a*0.6);
+    ctx.beginPath();
+    ctx.moveTo(0, -sz); ctx.lineTo(sz*0.25, -sz*0.25);
+    ctx.lineTo(sz, 0);  ctx.lineTo(sz*0.25, sz*0.25);
+    ctx.lineTo(0, sz);  ctx.lineTo(-sz*0.25, sz*0.25);
+    ctx.lineTo(-sz, 0); ctx.lineTo(-sz*0.25, -sz*0.25);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ---------- Cursor / tool indicator ----------
+  function drawCursor() {
+    const { x, y } = state.pointer;
+    if (x < -100) return;
+    ctx.save();
+    const r = state.tool === 'sponge' ? 28 : (state.tool === 'dry' ? 36 : 22);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath(); ctx.arc(x, y, r+6, 0, Math.PI*2); ctx.stroke();
+
+    // tool emoji
+    ctx.font = '20px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const ico = { water:'💦', foam:'🫧', sponge:'🧽', dry:'🌬️' }[state.tool];
+    ctx.fillText(ico, x, y);
+    ctx.restore();
+  }
+
+  // ---------- Particles ----------
+  function spawnDroplets(x, y, n, speedScale = 1) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = (1 + Math.random()*3) * speedScale;
+      state.droplets.push({
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 1.2*speedScale,
+        r: 1.4 + Math.random()*2.2,
+        life: 30 + Math.random()*30,
+        maxLife: 60,
+        g: 0.18 + Math.random()*0.08
+      });
+    }
+  }
+  function spawnSuds(x, y, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = Math.random() * 1.2;
+      state.suds.push({
+        x: x + Math.cos(a) * 6,
+        y: y + Math.sin(a) * 6,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp - 0.2,
+        r: 4 + Math.random()*9,
+        life: 280 + Math.random()*200,
+        maxLife: 480,
+      });
+    }
+  }
+  function spawnWind(x, y) {
+    for (let i = 0; i < 6; i++) {
+      state.wind.push({
+        x, y: y + (Math.random()-0.5)*20,
+        vx: 5 + Math.random()*5,
+        vy: (Math.random()-0.5)*1.5,
+        life: 24 + Math.random()*16,
+        maxLife: 40,
+      });
+    }
+  }
+
+  function stepParticles(dt) {
+    // droplets
+    for (let i = state.droplets.length-1; i >= 0; i--) {
+      const p = state.droplets[i];
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.life--;
+      if (p.life <= 0 || p.y > H + 20) state.droplets.splice(i,1);
+    }
+    // suds
+    for (let i = state.suds.length-1; i >= 0; i--) {
+      const s = state.suds[i];
+      s.x += s.vx * 0.4; s.y += s.vy * 0.4;
+      s.vx *= 0.97; s.vy *= 0.97;
+      // drying removes suds faster
+      const dryRate = state.tool === 'dry' && state.pointer.down ? 4 : 1;
+      s.life -= dryRate;
+      if (s.life <= 0) state.suds.splice(i,1);
+    }
+    // wind streaks
+    for (let i = state.wind.length-1; i >= 0; i--) {
+      const w = state.wind[i];
+      w.x += w.vx; w.y += w.vy; w.life--;
+      if (w.life <= 0) state.wind.splice(i,1);
+    }
+  }
+
+  function drawParticles() {
+    // droplets
+    ctx.save();
+    for (const p of state.droplets) {
+      const a = Math.max(0, p.life / p.maxLife);
+      const g = ctx.createRadialGradient(p.x - p.r*0.3, p.y - p.r*0.3, 0, p.x, p.y, p.r*1.4);
+      g.addColorStop(0, `rgba(220,240,255,${0.95*a})`);
+      g.addColorStop(1, `rgba(80,150,210,0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r*1.2, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+    // wind streaks
+    ctx.save();
+    ctx.strokeStyle = 'rgba(220,240,255,0.7)';
+    ctx.lineWidth = 1.5;
+    for (const w of state.wind) {
+      const a = w.life / w.maxLife;
+      ctx.globalAlpha = a * 0.7;
+      ctx.beginPath();
+      ctx.moveTo(w.x, w.y);
+      ctx.lineTo(w.x - 14, w.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ---------- Tool actions ----------
+  function applyTool(dt) {
+    if (!state.pointer.down) return;
+    const { x, y } = state.pointer;
+    const car = state.car;
+    const inside = ctx.isPointInPath(carBodyPath(), x, y);
+
+    if (state.tool === 'water') {
+      // Spray droplets always, wet & rinse off dirt if hovering car
+      spawnDroplets(x, y, 4, 1);
+      if (inside) {
+        // rinse: erase dirt and reduce foam strongly
+        const sx = (dirt.width / W), sy = (dirt.height/ H);
+        dctx.save();
+        dctx.globalCompositeOperation = 'destination-out';
+        const r = 26;
+        const g = dctx.createRadialGradient(x*sx, y*sy, 0, x*sx, y*sy, r);
+        g.addColorStop(0, 'rgba(0,0,0,0.55)');  // light rinse — needs sponge for deep dirt
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        dctx.fillStyle = g;
+        dctx.beginPath(); dctx.arc(x*sx, y*sy, r, 0, Math.PI*2); dctx.fill();
+        dctx.restore();
+        state.wetness = Math.min(1, state.wetness + 0.04);
+        state.dryness = Math.max(0, state.dryness - 0.05);
+        // rinse foam
+        for (let i = state.suds.length-1; i >= 0; i--) {
+          const s = state.suds[i];
+          if (Math.hypot(s.x-x, s.y-y) < 36) state.suds.splice(i,1);
+        }
+      }
+    } else if (state.tool === 'foam') {
+      if (inside) {
+        spawnSuds(x, y, 6);
+        state.foamCover = Math.min(1, state.foamCover + 0.02);
+      }
+    } else if (state.tool === 'sponge') {
+      if (inside) {
+        const foamNearby = state.suds.some(s => Math.hypot(s.x-x, s.y-y) < 40);
+        const power = foamNearby ? 0.95 : 0.45; // foam boosts cleaning
+        const sx = (dirt.width / W), sy = (dirt.height/ H);
+        dctx.save();
+        dctx.globalCompositeOperation = 'destination-out';
+        const r = 30 + Math.min(20, state.pointer.speed * 0.8);
+        const g = dctx.createRadialGradient(x*sx, y*sy, 0, x*sx, y*sy, r);
+        g.addColorStop(0, `rgba(0,0,0,${power})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        dctx.fillStyle = g;
+        dctx.beginPath(); dctx.arc(x*sx, y*sy, r, 0, Math.PI*2); dctx.fill();
+        // also a thin streak between last and current pos
+        const lx = state.pointer.lastX*sx, ly = state.pointer.lastY*sy;
+        dctx.strokeStyle = `rgba(0,0,0,${power})`;
+        dctx.lineCap = 'round';
+        dctx.lineWidth = r * 0.9;
+        dctx.beginPath(); dctx.moveTo(lx, ly); dctx.lineTo(x*sx, y*sy); dctx.stroke();
+        dctx.restore();
+        // consume some foam where rubbed
+        for (let i = state.suds.length-1; i >= 0; i--) {
+          const s = state.suds[i];
+          if (Math.hypot(s.x-x, s.y-y) < 30) { s.life -= 30; if (s.life<=0) state.suds.splice(i,1); }
+        }
+      }
+    } else if (state.tool === 'dry') {
+      spawnWind(x, y);
+      if (inside) {
+        state.dryness = Math.min(1, state.dryness + 0.012);
+        state.wetness = Math.max(0, state.wetness - 0.012);
+        // dry foam quickly
+        for (let i = state.suds.length-1; i >= 0; i--) {
+          const s = state.suds[i];
+          if (Math.hypot(s.x-x, s.y-y) < 50) s.life -= 14;
+          if (s.life <= 0) state.suds.splice(i,1);
+        }
+      }
+    }
+  }
+
+  // ---------- Color util ----------
+  function shade(hex, pct) {
+    const c = hex.replace('#','');
+    const r = parseInt(c.substr(0,2),16);
+    const g = parseInt(c.substr(2,2),16);
+    const b = parseInt(c.substr(4,2),16);
+    const f = (v) => Math.max(0, Math.min(255, Math.round(v + (pct>0 ? (255-v) : v) * pct)));
+    return `rgb(${f(r)},${f(g)},${f(b)})`;
+  }
+
+  // ---------- UI ----------
+  function showMessage(text, ms = 2200) {
+    msgEl.textContent = text;
+    msgEl.classList.add('show');
+    clearTimeout(showMessage._t);
+    showMessage._t = setTimeout(() => msgEl.classList.remove('show'), ms);
+  }
+  function finishLevel() {
+    state.finished = true;
+    // tip depends on speed + remaining foam penalty
+    const timeBonus = Math.max(0, 100 - Math.floor(state.elapsed*0.3));
+    const dirtBonus = Math.floor(state.cleanliness * 200);
+    const dryBonus  = Math.floor(state.dryness * 60);
+    const foamPenalty = Math.floor(state.suds.length * 0.8);
+    const tip = Math.max(10, dirtBonus + timeBonus + dryBonus - foamPenalty);
+    state.score += tip;
+    scoreEl.textContent = state.score + ' €';
+    showMessage(`✨ Glänzend! +${tip} € Trinkgeld`);
+    nextBtn.disabled = false;
+  }
+  nextBtn.addEventListener('click', () => {
+    state.level++;
+    nextLevel();
+  });
+  function nextLevel() {
+    state.finished = false;
+    nextBtn.disabled = true;
+    state.elapsed = 0;
+    state.wetness = 0;
+    state.dryness = 1;
+    state.cleanliness = 0;
+    state.foamCover = 0;
+    state.particles = [];
+    state.droplets = [];
+    state.suds = [];
+    state.wind = [];
+    state.sparkles = [];
+    state.car = makeCar(state.level);
+    sprinkleDirt();
+    // pre-generate sparkles inside body
+    for (let i = 0; i < 18; i++) {
+      const car = state.car;
+      const ang = Math.random()*Math.PI*2;
+      const rr = Math.sqrt(Math.random());
+      state.sparkles.push({
+        x: car.cx + Math.cos(ang)*rr*car.w*0.42,
+        y: car.cy + Math.sin(ang)*rr*car.h*0.45 - car.h*0.05,
+        r: Math.random()*Math.PI,
+        size: 3 + Math.random()*4,
+        phase: Math.random()*Math.PI*2,
+      });
+    }
+    levelEl.textContent = state.level;
+    showMessage(`Auftrag ${state.level}: schrubb das Auto blitzblank!`);
+  }
+
+  // ---------- Main loop ----------
+  let lastT = performance.now();
+  function tick(t) {
+    const dt = Math.min(40, t - lastT);
+    lastT = t;
+
+    if (!state.finished) state.elapsed += dt/1000;
+    timeEl.textContent = state.elapsed.toFixed(1) + 's';
+
+    applyTool(dt);
+    stepParticles(dt);
+
+    // Sample cleanliness periodically (cheap)
+    sampleCounter += dt;
+    if (sampleCounter > 120) {
+      sampleCounter = 0;
+      state.cleanliness = measureCleanliness();
+      // foam coverage estimate
+      state.foamCover = Math.min(1, state.suds.length / 220);
+      cleanEl.textContent = Math.round(state.cleanliness*100) + '%';
+      bar.style.width = (state.cleanliness*100).toFixed(0) + '%';
+      if (!state.finished && state.cleanliness > 0.985 && state.suds.length < 8 && state.dryness > 0.75) {
+        finishLevel();
+      }
+    }
+    // passive drying
+    state.dryness = Math.min(1, state.dryness + 0.0006*dt);
+    state.wetness = Math.max(0, state.wetness - 0.0004*dt);
+
+    // Render
+    drawBackground(t);
+    drawCar(t, false);
+    drawParticles();
+    drawCursor();
+
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- Boot ----------
+  resize();
+  state.car = makeCar(state.level);
+  sprinkleDirt();
+  nextLevel(); // shows message for level 1 (but we already incremented? no)
+  // nextLevel() above already configured level 1; reset score display
+  scoreEl.textContent = state.score + ' €';
+  levelEl.textContent = state.level;
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
