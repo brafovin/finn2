@@ -553,9 +553,22 @@ function buildCat() {
   cat.add(bell);
 }
 buildCat();
+
+// ============================================================
+//  Auto-Typen
+// ============================================================
+const carTypes = [
+  { name: 'Sportwagen',   bodyW: 4.2, bodyH: 0.85, bodyD: 1.85, cabinW: 2.0, cabinH: 0.62, cabinD: 1.65, cabinXOff: -0.10, hasSpoiler: true,  hasSkirts: true,  hasRoofRails: false },
+  { name: 'SUV',          bodyW: 4.0, bodyH: 1.20, bodyD: 1.95, cabinW: 2.7, cabinH: 1.00, cabinD: 1.85, cabinXOff: -0.05, hasSpoiler: false, hasSkirts: false, hasRoofRails: true  },
+  { name: 'Pickup',       bodyW: 4.6, bodyH: 1.00, bodyD: 1.80, cabinW: 1.8, cabinH: 0.95, cabinD: 1.75, cabinXOff:  0.70, hasSpoiler: false, hasSkirts: false, hasRoofRails: false },
+  { name: 'Klassiker',    bodyW: 4.5, bodyH: 1.00, bodyD: 1.80, cabinW: 1.8, cabinH: 0.85, cabinD: 1.70, cabinXOff: -0.65, hasSpoiler: false, hasSkirts: false, hasRoofRails: false },
+  { name: 'Stadtflitzer', bodyW: 3.2, bodyH: 1.05, bodyD: 1.65, cabinW: 1.7, cabinH: 0.92, cabinD: 1.55, cabinXOff: -0.05, hasSpoiler: false, hasSkirts: false, hasRoofRails: false },
+];
+
 const game = {
   tool: 'water',
   paintIdx: 0,
+  typeIdx: 0,
   palette: [0xed0a14, 0xffcf1c, 0x143278, 0xe6e8ee, 0x0e1218, 0x0a3a18, 0xff5a14, 0x6b1f8f, 0x10b0c8],
   level: 1, score: 0, elapsed: 0,
   cleanliness: 0, wetness: 0, dryness: 1, foamCount: 0,
@@ -723,9 +736,10 @@ function buildCar() {
   game.carGroup = group;
 
   const color = game.palette[game.paintIdx % game.palette.length];
-
-  const bodyW = 4.2, bodyH = 1.0, bodyD = 1.85;
-  const cabinW = 2.4, cabinH = 0.78, cabinD = 1.72;
+  const carType = carTypes[game.typeIdx % carTypes.length];
+  const bodyW = carType.bodyW, bodyH = carType.bodyH, bodyD = carType.bodyD;
+  const cabinW = carType.cabinW, cabinH = carType.cabinH, cabinD = carType.cabinD;
+  const cabinXOff = carType.cabinXOff;
 
   // Lower body
   const bodyGeo = new THREE.BoxGeometry(bodyW, bodyH, bodyD, 1, 1, 1);
@@ -745,7 +759,7 @@ function buildCar() {
   const cabinDirt = makeDirtTexture();
   const cabinMat = makeCarMaterial(color, cabinDirt.texture);
   const cabin = new THREE.Mesh(cabinGeo, cabinMat);
-  cabin.position.set(-0.15, 0.7 + bodyH/2 + cabinH/2 - 0.02, 0);
+  cabin.position.set(cabinXOff, 0.7 + bodyH/2 + cabinH/2 - 0.02, 0);
   cabin.castShadow = true; cabin.receiveShadow = true;
   cabin.userData.dirt = cabinDirt;
   group.add(cabin);
@@ -849,16 +863,32 @@ function buildCar() {
   }
   mirror(1); mirror(-1);
 
-  // Heckspoiler mit zwei Stuetzen
-  const spoilerY = 0.7 + bodyH/2 + 0.24;
-  const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.07, 0.55), matteBlack);
-  spoiler.position.set(-bodyW/2 + 0.55, spoilerY, 0);
-  spoiler.castShadow = true;
-  group.add(spoiler);
-  for (const sz of [-0.46, 0.46]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.20, 0.09), matteBlack);
-    post.position.set(-bodyW/2 + 0.55, spoilerY - 0.13, sz);
-    group.add(post);
+  // Heckspoiler nur bei Sportwagen
+  if (carType.hasSpoiler) {
+    const spoilerY = 0.7 + bodyH/2 + 0.24;
+    const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.07, 0.55), matteBlack);
+    spoiler.position.set(-bodyW/2 + 0.55, spoilerY, 0);
+    spoiler.castShadow = true;
+    group.add(spoiler);
+    for (const sz of [-0.46, 0.46]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.20, 0.09), matteBlack);
+      post.position.set(-bodyW/2 + 0.55, spoilerY - 0.13, sz);
+      group.add(post);
+    }
+  }
+
+  // Dachreling beim SUV
+  if (carType.hasRoofRails) {
+    for (const sz of [-cabinD/2 + 0.08, cabinD/2 - 0.08]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(cabinW * 0.85, 0.04, 0.05), matteBlack);
+      rail.position.set(cabin.position.x, cabin.position.y + cabinH/2 + 0.05, sz);
+      group.add(rail);
+      for (const mx of [-cabinW * 0.32, 0, cabinW * 0.32]) {
+        const mount = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.07, 0.06), matteBlack);
+        mount.position.set(cabin.position.x + mx, cabin.position.y + cabinH/2 + 0.025, sz);
+        group.add(mount);
+      }
+    }
   }
 
   // Zwei Auspuffrohre hinten
@@ -886,11 +916,13 @@ function buildCar() {
     group.add(slat);
   }
 
-  // Seitenschweller (Side Skirts)
-  for (const sz of [bodyD/2 + 0.015, -bodyD/2 - 0.015]) {
-    const skirt = new THREE.Mesh(new THREE.BoxGeometry(bodyW - 0.6, 0.20, 0.10), matteBlack);
-    skirt.position.set(0, 0.32, sz);
-    group.add(skirt);
+  // Seitenschweller nur bei sportlichen Karossen
+  if (carType.hasSkirts) {
+    for (const sz of [bodyD/2 + 0.015, -bodyD/2 - 0.015]) {
+      const skirt = new THREE.Mesh(new THREE.BoxGeometry(bodyW - 0.6, 0.20, 0.10), matteBlack);
+      skirt.position.set(0, 0.32, sz);
+      group.add(skirt);
+    }
   }
 
   // Renn-Doppelstreifen auf dem Cabin-Dach
@@ -1477,7 +1509,8 @@ function newLevel() {
   rebuildSparkles();
   ui.level.textContent = game.level;
   ui.score.textContent = game.score + ' €';
-  showMessage(`Auftrag ${game.level}: schrubb den Wagen blitzblank!`);
+  const typeName = carTypes[game.typeIdx % carTypes.length].name;
+  showMessage(`Auftrag ${game.level}: ${typeName} blitzblank putzen!`);
 }
 function finishLevel() {
   game.finished = true;
@@ -1496,6 +1529,7 @@ function advanceLevel() {
   if (garageDoor) garageDoor.position.y = 0;
   game.level++;
   game.paintIdx = (game.paintIdx + 1) % game.palette.length;
+  game.typeIdx = (game.typeIdx + 1) % carTypes.length;
   newLevel();
 }
 ui.next.addEventListener('click', advanceLevel);
