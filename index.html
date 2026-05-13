@@ -90,8 +90,8 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a0d14);
-scene.fog = new THREE.Fog(0x0a0d14, 22, 70);
+scene.background = new THREE.Color(0x171821);
+scene.fog = new THREE.Fog(0x171821, 24, 75);
 
 const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
 camera.position.set(6.8, 3.6, 8.2);
@@ -134,50 +134,271 @@ const rim = new THREE.DirectionalLight(0x66b2ff, 0.45);
 rim.position.set(-6, 5, -6);
 scene.add(rim);
 
-// Neon overhead strips
-const stripMat = new THREE.MeshBasicMaterial({ color: 0xd4eeff });
-for (let i = -2; i <= 2; i++) {
-  const strip = new THREE.Mesh(new THREE.BoxGeometry(8, 0.06, 0.35), stripMat);
-  strip.position.set(0, 6.2, i * 2.2);
-  scene.add(strip);
-  const pl = new THREE.PointLight(0xcfeefe, 12, 14, 1.6);
-  pl.position.set(0, 5.7, i * 2.2);
-  scene.add(pl);
+// ============================================================
+//  Workshop
+// ============================================================
+function buildWorkshop() {
+  // --- Concrete floor ---
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(34, 34),
+    new THREE.MeshStandardMaterial({ color: 0x6a6e78, roughness: 0.92, metalness: 0.05 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Subtle floor seams
+  const seamMat = new THREE.MeshBasicMaterial({ color: 0x2a2d34, transparent: true, opacity: 0.55 });
+  for (let i = -3; i <= 3; i++) {
+    const s = new THREE.Mesh(new THREE.PlaneGeometry(34, 0.04), seamMat);
+    s.rotation.x = -Math.PI/2;
+    s.position.set(0, 0.011, i * 4);
+    scene.add(s);
+    const s2 = new THREE.Mesh(new THREE.PlaneGeometry(0.04, 34), seamMat);
+    s2.rotation.x = -Math.PI/2;
+    s2.position.set(i * 4, 0.011, 0);
+    scene.add(s2);
+  }
+
+  // Yellow parking marking around the car
+  const paintMat = new THREE.MeshBasicMaterial({ color: 0xf5c728 });
+  function stripe(x, z, w, l, rot = 0) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), paintMat);
+    m.rotation.x = -Math.PI/2; m.rotation.z = rot;
+    m.position.set(x, 0.013, z);
+    scene.add(m);
+  }
+  stripe(0,  3.6, 6.8, 0.10);
+  stripe(0, -3.6, 6.8, 0.10);
+  stripe(-3.4, 0, 0.10, 7.2);
+  stripe( 3.4, 0, 0.10, 7.2);
+
+  // --- Walls ---
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x7a7e8a, roughness: 0.95, metalness: 0.0 });
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(36, 13), wallMat);
+  back.position.set(0, 6.0, -11);
+  back.receiveShadow = true;
+  scene.add(back);
+  const left = new THREE.Mesh(new THREE.PlaneGeometry(22, 13), wallMat);
+  left.position.set(-13, 6.0, 0);
+  left.rotation.y = Math.PI/2;
+  left.receiveShadow = true;
+  scene.add(left);
+  const right = new THREE.Mesh(new THREE.PlaneGeometry(22, 13), wallMat);
+  right.position.set(13, 6.0, 0);
+  right.rotation.y = -Math.PI/2;
+  right.receiveShadow = true;
+  scene.add(right);
+  // Skirting board
+  const skirtMat = new THREE.MeshStandardMaterial({ color: 0x33363f, roughness: 0.7 });
+  const skirtB = new THREE.Mesh(new THREE.BoxGeometry(36, 0.35, 0.08), skirtMat);
+  skirtB.position.set(0, 0.175, -10.96); scene.add(skirtB);
+  const skirtL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 22), skirtMat);
+  skirtL.position.set(-12.96, 0.175, 0); scene.add(skirtL);
+  const skirtR = skirtL.clone(); skirtR.position.x = 12.96; scene.add(skirtR);
+
+  // --- Roll-up garage door on back wall ---
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x7e8590, roughness: 0.45, metalness: 0.55 });
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(8.2, 5.8), doorMat);
+  door.position.set(0, 2.95, -10.94);
+  scene.add(door);
+  const slatMat = new THREE.MeshStandardMaterial({ color: 0x3a3f48, roughness: 0.7 });
+  for (let i = 0; i < 9; i++) {
+    const slat = new THREE.Mesh(new THREE.PlaneGeometry(8.2, 0.04), slatMat);
+    slat.position.set(0, 0.3 + i * 0.66, -10.93);
+    scene.add(slat);
+  }
+  // door rails
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.5, metalness: 0.7 });
+  for (const sx of [-4.2, 4.2]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 5.9, 0.08), railMat);
+    rail.position.set(sx, 2.95, -10.92);
+    scene.add(rail);
+  }
+
+  // --- Ceiling beams ---
+  const beamMat = new THREE.MeshStandardMaterial({ color: 0x2c303a, roughness: 0.55, metalness: 0.55 });
+  for (let i = -3; i <= 3; i++) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(26, 0.32, 0.32), beamMat);
+    beam.position.set(0, 7.6, i * 1.8);
+    scene.add(beam);
+  }
+  // Crossbeams
+  for (const cx of [-10, -5, 0, 5, 10]) {
+    const cb = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.32, 13), beamMat);
+    cb.position.set(cx, 7.85, 0);
+    scene.add(cb);
+  }
+
+  // --- Hanging workshop lamps ---
+  const lampShadeMat = new THREE.MeshStandardMaterial({ color: 0xe8d9a8, roughness: 0.55, side: THREE.DoubleSide });
+  function lamp(x, z, intensity = 5) {
+    const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1.4),
+      new THREE.MeshBasicMaterial({ color: 0x222 }));
+    wire.position.set(x, 7.0, z);
+    scene.add(wire);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.48, 0.45, 18, 1, true), lampShadeMat);
+    cone.position.set(x, 6.25, z);
+    scene.add(cone);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10),
+      new THREE.MeshBasicMaterial({ color: 0xffe7b8 }));
+    bulb.position.set(x, 6.10, z);
+    scene.add(bulb);
+    const pl = new THREE.PointLight(0xffd9a0, intensity, 10, 1.6);
+    pl.position.set(x, 5.95, z);
+    scene.add(pl);
+  }
+  lamp(-3, 0); lamp(3, 0); lamp(0, -3); lamp(0, 3);
+
+  // --- Workbench (left side) ---
+  const benchMat = new THREE.MeshStandardMaterial({ color: 0x6a3b1f, roughness: 0.75 });
+  const benchFrame = new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.6, metalness: 0.55 });
+  const benchTop = new THREE.Mesh(new THREE.BoxGeometry(7, 0.16, 1.4), benchMat);
+  benchTop.position.set(-9.8, 1.1, -6);
+  benchTop.castShadow = true; benchTop.receiveShadow = true;
+  scene.add(benchTop);
+  for (const lx of [-13, -6.6]) {
+    for (const lz of [-6.55, -5.45]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.1, 0.12), benchFrame);
+      leg.position.set(lx, 0.55, lz);
+      leg.castShadow = true;
+      scene.add(leg);
+    }
+  }
+  const shelf = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.06, 1.2),
+    new THREE.MeshStandardMaterial({ color: 0x4f2c14, roughness: 0.85 }));
+  shelf.position.set(-9.8, 0.35, -6);
+  scene.add(shelf);
+  // Vise on bench
+  const viseBody = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.3, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x2a4ec5, roughness: 0.45, metalness: 0.6 }));
+  viseBody.position.set(-7.3, 1.33, -6);
+  scene.add(viseBody);
+  const viseJaw = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.32, 0.45),
+    new THREE.MeshStandardMaterial({ color: 0x9aa3b0, roughness: 0.4, metalness: 0.8 }));
+  viseJaw.position.set(-7.55, 1.34, -6);
+  scene.add(viseJaw);
+
+  // --- Pegboard with tools ---
+  const peg = new THREE.Mesh(new THREE.BoxGeometry(6, 2.4, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0xc24a1a, roughness: 0.7 }));
+  peg.position.set(-9.8, 3.5, -6.69);
+  scene.add(peg);
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0xc0c6d2, roughness: 0.3, metalness: 0.85 });
+  const handleMat = new THREE.MeshStandardMaterial({ color: 0x6a3b1f, roughness: 0.85 });
+  function pegItem(geo, mat, x, y, rot = 0) {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(-9.8 + x, 3.5 + y, -6.65);
+    m.rotation.z = rot;
+    scene.add(m);
+  }
+  // wrenches
+  pegItem(new THREE.PlaneGeometry(0.18, 1.4), metalMat, -2.2, 0.2);
+  pegItem(new THREE.PlaneGeometry(0.16, 1.2), metalMat, -1.7, 0.1);
+  pegItem(new THREE.PlaneGeometry(0.14, 1.0), metalMat, -1.2, 0.0);
+  pegItem(new THREE.RingGeometry(0.16, 0.24, 18), metalMat, -2.2, 0.95);
+  pegItem(new THREE.RingGeometry(0.14, 0.22, 18), metalMat, -1.7, 0.75);
+  // hammer
+  pegItem(new THREE.PlaneGeometry(0.07, 1.0), handleMat, -0.4, 0.0);
+  pegItem(new THREE.PlaneGeometry(0.42, 0.18), metalMat, -0.4, 0.55);
+  // screwdrivers
+  for (let i = 0; i < 4; i++) {
+    pegItem(new THREE.PlaneGeometry(0.05, 0.8), metalMat, 0.4 + i*0.18, 0.1);
+    pegItem(new THREE.PlaneGeometry(0.10, 0.25), handleMat, 0.4 + i*0.18, -0.35);
+  }
+  // saw
+  pegItem(new THREE.PlaneGeometry(1.2, 0.22), metalMat, 2.0, 0.7);
+  pegItem(new THREE.PlaneGeometry(0.35, 0.12), handleMat, 1.3, 0.7);
+
+  // --- Tire stack (right rear) ---
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x0d1018, roughness: 0.95, metalness: 0.05 });
+  for (let s = 0; s < 4; s++) {
+    const tire = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.18, 14, 30), tireMat);
+    tire.rotation.x = Math.PI/2;
+    tire.position.set(8.8, 0.20 + s * 0.34, -7);
+    tire.castShadow = true; tire.receiveShadow = true;
+    scene.add(tire);
+  }
+
+  // --- Oil drums ---
+  function drum(x, z, color) {
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.45, 26),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.55 }));
+    body.position.set(x, 0.725, z);
+    body.castShadow = true; body.receiveShadow = true;
+    scene.add(body);
+    const bandMat = new THREE.MeshStandardMaterial({ color: 0x3b414e, roughness: 0.5, metalness: 0.7 });
+    for (const by of [-0.45, 0.45]) {
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.462, 0.462, 0.08, 26), bandMat);
+      band.position.set(x, 0.725 + by, z);
+      scene.add(band);
+    }
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.05, 26),
+      new THREE.MeshStandardMaterial({ color: 0x2a2f3a, roughness: 0.45, metalness: 0.7 }));
+    lid.position.set(x, 1.47, z);
+    scene.add(lid);
+  }
+  drum( 9.6, -4.2, 0xc02a1a);
+  drum(10.4, -5.1, 0x1c52c5);
+  drum( 9.6, -6.0, 0xc59c1a);
+
+  // --- Tool cart (red cabinet) ---
+  const cartMat = new THREE.MeshStandardMaterial({ color: 0xc02828, roughness: 0.4, metalness: 0.55 });
+  const cart = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.7, 0.95), cartMat);
+  cart.position.set(8.6, 0.85, 5);
+  cart.castShadow = true; cart.receiveShadow = true;
+  scene.add(cart);
+  const drawerLineMat = new THREE.MeshStandardMaterial({ color: 0x500a0a });
+  const drawHandleMat = new THREE.MeshStandardMaterial({ color: 0xd0d3da, roughness: 0.25, metalness: 0.85 });
+  for (let d = 0; d < 4; d++) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.025, 0.96), drawerLineMat);
+    line.position.set(8.6, 0.22 + d * 0.4, 5);
+    scene.add(line);
+    const h = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.045, 0.05), drawHandleMat);
+    h.position.set(8.6, 0.40 + d * 0.4, 5.49);
+    scene.add(h);
+  }
+  // Toolbox lid (top compartment)
+  const topLid = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.05, 0.97),
+    new THREE.MeshStandardMaterial({ color: 0x900, roughness: 0.4, metalness: 0.4 }));
+  topLid.position.set(8.6, 1.72, 5);
+  scene.add(topLid);
+
+  // --- Stacked boxes (back left) ---
+  const boxMat1 = new THREE.MeshStandardMaterial({ color: 0xa6743a, roughness: 0.9 });
+  const boxMat2 = new THREE.MeshStandardMaterial({ color: 0x8c5e2c, roughness: 0.9 });
+  function box(x, y, z, sx, sy, sz, m) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m);
+    b.position.set(x, y, z);
+    b.castShadow = true; b.receiveShadow = true;
+    scene.add(b);
+  }
+  box(-9, 0.5, 4, 1.0, 1.0, 1.0, boxMat1);
+  box(-9.7, 0.4, 5.1, 0.8, 0.8, 0.8, boxMat2);
+  box(-8.4, 0.4, 4.9, 0.8, 0.8, 0.8, boxMat1);
+  box(-9.1, 1.4, 4.3, 0.8, 0.8, 0.8, boxMat2);
+
+  // --- "WERKSTATT" sign above back wall door ---
+  const signCanvas = document.createElement('canvas');
+  signCanvas.width = 512; signCanvas.height = 96;
+  const sctx = signCanvas.getContext('2d');
+  sctx.fillStyle = '#1a1c22'; sctx.fillRect(0, 0, 512, 96);
+  sctx.strokeStyle = '#f5c728'; sctx.lineWidth = 6;
+  sctx.strokeRect(6, 6, 500, 84);
+  sctx.fillStyle = '#f5c728';
+  sctx.font = 'bold 56px Impact, "Arial Black", sans-serif';
+  sctx.textAlign = 'center'; sctx.textBaseline = 'middle';
+  sctx.fillText('WERKSTATT', 256, 52);
+  const signTex = new THREE.CanvasTexture(signCanvas);
+  signTex.colorSpace = THREE.SRGBColorSpace;
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(5, 0.9),
+    new THREE.MeshBasicMaterial({ map: signTex })
+  );
+  sign.position.set(0, 6.4, -10.93);
+  scene.add(sign);
 }
-
-// ============================================================
-//  Ground & garage
-// ============================================================
-const ground = new THREE.Mesh(
-  new THREE.CircleGeometry(30, 64),
-  new THREE.MeshStandardMaterial({ color: 0x121823, roughness: 0.32, metalness: 0.15 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
-
-const grid = new THREE.GridHelper(40, 40, 0x2a3a55, 0x1a2238);
-grid.material.transparent = true;
-grid.material.opacity = 0.45;
-grid.position.y = 0.002;
-scene.add(grid);
-
-// Concentric glow ring on the floor
-const ring = new THREE.Mesh(
-  new THREE.RingGeometry(4.6, 5.6, 64),
-  new THREE.MeshBasicMaterial({ color: 0x48d1ff, transparent: true, opacity: 0.18 })
-);
-ring.rotation.x = -Math.PI / 2;
-ring.position.y = 0.003;
-scene.add(ring);
-
-// Back wall (subtle)
-const wall = new THREE.Mesh(
-  new THREE.PlaneGeometry(50, 14),
-  new THREE.MeshStandardMaterial({ color: 0x0e1422, roughness: 0.85 })
-);
-wall.position.set(0, 6, -14);
-scene.add(wall);
+buildWorkshop();
 
 // ============================================================
 //  Game state
